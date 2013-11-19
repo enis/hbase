@@ -255,6 +255,11 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
     new TreeMap<byte [], HColumnDescriptor>(Bytes.BYTES_RAWCOMPARATOR);
 
   /**
+   * The number of replicas per region
+   */
+  private int numRegionReplicas = 1;
+
+  /**
    * <em> INTERNAL </em> Private constructor used internally creating table descriptors for
    * catalog tables, <code>hbase:meta</code> and <code>-ROOT-</code>.
    */
@@ -1091,6 +1096,13 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
   }
 
   /**
+   * Returns the configured replicas per region 
+   */
+  public int getNumRegionReplicas() {
+    return numRegionReplicas;
+  }
+
+  /**
    * Returns all the column family names of the current table. The map of
    * HTableDescriptor contains mapping of family name to HColumnDescriptors.
    * This returns all the keys of the family map which represents the column
@@ -1448,6 +1460,7 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
       aBuilder.setValue(e.getValue());
       builder.addConfiguration(aBuilder.build());
     }
+    builder.setNumReplicas(getNumRegionReplicas());
     return builder.build();
   }
 
@@ -1471,6 +1484,7 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
     for (NameStringPair a: ts.getConfigurationList()) {
       htd.setConfiguration(a.getName(), a.getValue());
     }
+    htd.numRegionReplicas = ts.getNumReplicas();
     return htd;
   }
 

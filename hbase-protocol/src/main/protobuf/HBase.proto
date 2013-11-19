@@ -42,6 +42,7 @@ message TableSchema {
   repeated BytesBytesPair attributes = 2;
   repeated ColumnFamilySchema column_families = 3;
   repeated NameStringPair configuration = 4;
+  optional int32 numReplicas = 5 [default = 1];
 }
 
 /**
@@ -64,6 +65,7 @@ message RegionInfo {
   optional bytes end_key = 4;
   optional bool offline = 5;
   optional bool split = 6;
+  optional int32 replicaId = 7 [default = 0];
 }
 
 /**

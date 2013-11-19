@@ -92,6 +92,7 @@ public abstract class ModifyRegionUtils {
         regionOpenAndInitThreadPool);
     List<HRegionInfo> regionInfos = new ArrayList<HRegionInfo>();
     for (final HRegionInfo newRegion : newRegions) {
+      if (!newRegion.isPrimaryReplica()) continue;
       completionService.submit(new Callable<HRegionInfo>() {
         public HRegionInfo call() throws IOException {
           // 1. Create HRegion

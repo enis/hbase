@@ -786,6 +786,16 @@ public final class HBaseProtos {
      */
     org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.NameStringPairOrBuilder getConfigurationOrBuilder(
         int index);
+
+    // optional int32 numReplicas = 5 [default = 1];
+    /**
+     * <code>optional int32 numReplicas = 5 [default = 1];</code>
+     */
+    boolean hasNumReplicas();
+    /**
+     * <code>optional int32 numReplicas = 5 [default = 1];</code>
+     */
+    int getNumReplicas();
   }
   /**
    * Protobuf type {@code TableSchema}
@@ -879,6 +889,11 @@ public final class HBaseProtos {
                 mutable_bitField0_ |= 0x00000008;
               }
               configuration_.add(input.readMessage(org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.NameStringPair.PARSER, extensionRegistry));
+              break;
+            }
+            case 40: {
+              bitField0_ |= 0x00000002;
+              numReplicas_ = input.readInt32();
               break;
             }
           }
@@ -1060,11 +1075,28 @@ public final class HBaseProtos {
       return configuration_.get(index);
     }
 
+    // optional int32 numReplicas = 5 [default = 1];
+    public static final int NUMREPLICAS_FIELD_NUMBER = 5;
+    private int numReplicas_;
+    /**
+     * <code>optional int32 numReplicas = 5 [default = 1];</code>
+     */
+    public boolean hasNumReplicas() {
+      return ((bitField0_ & 0x00000002) == 0x00000002);
+    }
+    /**
+     * <code>optional int32 numReplicas = 5 [default = 1];</code>
+     */
+    public int getNumReplicas() {
+      return numReplicas_;
+    }
+
     private void initFields() {
       tableName_ = org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.TableName.getDefaultInstance();
       attributes_ = java.util.Collections.emptyList();
       columnFamilies_ = java.util.Collections.emptyList();
       configuration_ = java.util.Collections.emptyList();
+      numReplicas_ = 1;
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -1114,6 +1146,9 @@ public final class HBaseProtos {
       for (int i = 0; i < configuration_.size(); i++) {
         output.writeMessage(4, configuration_.get(i));
       }
+      if (((bitField0_ & 0x00000002) == 0x00000002)) {
+        output.writeInt32(5, numReplicas_);
+      }
       getUnknownFields().writeTo(output);
     }
 
@@ -1138,6 +1173,10 @@ public final class HBaseProtos {
       for (int i = 0; i < configuration_.size(); i++) {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(4, configuration_.get(i));
+      }
+      if (((bitField0_ & 0x00000002) == 0x00000002)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeInt32Size(5, numReplicas_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -1173,6 +1212,11 @@ public final class HBaseProtos {
           .equals(other.getColumnFamiliesList());
       result = result && getConfigurationList()
           .equals(other.getConfigurationList());
+      result = result && (hasNumReplicas() == other.hasNumReplicas());
+      if (hasNumReplicas()) {
+        result = result && (getNumReplicas()
+            == other.getNumReplicas());
+      }
       result = result &&
           getUnknownFields().equals(other.getUnknownFields());
       return result;
@@ -1201,6 +1245,10 @@ public final class HBaseProtos {
       if (getConfigurationCount() > 0) {
         hash = (37 * hash) + CONFIGURATION_FIELD_NUMBER;
         hash = (53 * hash) + getConfigurationList().hashCode();
+      }
+      if (hasNumReplicas()) {
+        hash = (37 * hash) + NUMREPLICAS_FIELD_NUMBER;
+        hash = (53 * hash) + getNumReplicas();
       }
       hash = (29 * hash) + getUnknownFields().hashCode();
       memoizedHashCode = hash;
@@ -1345,6 +1393,8 @@ public final class HBaseProtos {
         } else {
           configurationBuilder_.clear();
         }
+        numReplicas_ = 1;
+        bitField0_ = (bitField0_ & ~0x00000010);
         return this;
       }
 
@@ -1408,6 +1458,10 @@ public final class HBaseProtos {
         } else {
           result.configuration_ = configurationBuilder_.build();
         }
+        if (((from_bitField0_ & 0x00000010) == 0x00000010)) {
+          to_bitField0_ |= 0x00000002;
+        }
+        result.numReplicas_ = numReplicas_;
         result.bitField0_ = to_bitField0_;
         onBuilt();
         return result;
@@ -1504,6 +1558,9 @@ public final class HBaseProtos {
               configurationBuilder_.addAllMessages(other.configuration_);
             }
           }
+        }
+        if (other.hasNumReplicas()) {
+          setNumReplicas(other.getNumReplicas());
         }
         this.mergeUnknownFields(other.getUnknownFields());
         return this;
@@ -2391,6 +2448,39 @@ public final class HBaseProtos {
           configuration_ = null;
         }
         return configurationBuilder_;
+      }
+
+      // optional int32 numReplicas = 5 [default = 1];
+      private int numReplicas_ = 1;
+      /**
+       * <code>optional int32 numReplicas = 5 [default = 1];</code>
+       */
+      public boolean hasNumReplicas() {
+        return ((bitField0_ & 0x00000010) == 0x00000010);
+      }
+      /**
+       * <code>optional int32 numReplicas = 5 [default = 1];</code>
+       */
+      public int getNumReplicas() {
+        return numReplicas_;
+      }
+      /**
+       * <code>optional int32 numReplicas = 5 [default = 1];</code>
+       */
+      public Builder setNumReplicas(int value) {
+        bitField0_ |= 0x00000010;
+        numReplicas_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>optional int32 numReplicas = 5 [default = 1];</code>
+       */
+      public Builder clearNumReplicas() {
+        bitField0_ = (bitField0_ & ~0x00000010);
+        numReplicas_ = 1;
+        onChanged();
+        return this;
       }
 
       // @@protoc_insertion_point(builder_scope:TableSchema)
@@ -3687,6 +3777,16 @@ public final class HBaseProtos {
      * <code>optional bool split = 6;</code>
      */
     boolean getSplit();
+
+    // optional int32 replicaId = 7 [default = 0];
+    /**
+     * <code>optional int32 replicaId = 7 [default = 0];</code>
+     */
+    boolean hasReplicaId();
+    /**
+     * <code>optional int32 replicaId = 7 [default = 0];</code>
+     */
+    int getReplicaId();
   }
   /**
    * Protobuf type {@code RegionInfo}
@@ -3780,6 +3880,11 @@ public final class HBaseProtos {
             case 48: {
               bitField0_ |= 0x00000020;
               split_ = input.readBool();
+              break;
+            }
+            case 56: {
+              bitField0_ |= 0x00000040;
+              replicaId_ = input.readInt32();
               break;
             }
           }
@@ -3924,6 +4029,22 @@ public final class HBaseProtos {
       return split_;
     }
 
+    // optional int32 replicaId = 7 [default = 0];
+    public static final int REPLICAID_FIELD_NUMBER = 7;
+    private int replicaId_;
+    /**
+     * <code>optional int32 replicaId = 7 [default = 0];</code>
+     */
+    public boolean hasReplicaId() {
+      return ((bitField0_ & 0x00000040) == 0x00000040);
+    }
+    /**
+     * <code>optional int32 replicaId = 7 [default = 0];</code>
+     */
+    public int getReplicaId() {
+      return replicaId_;
+    }
+
     private void initFields() {
       regionId_ = 0L;
       tableName_ = org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.TableName.getDefaultInstance();
@@ -3931,6 +4052,7 @@ public final class HBaseProtos {
       endKey_ = com.google.protobuf.ByteString.EMPTY;
       offline_ = false;
       split_ = false;
+      replicaId_ = 0;
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -3974,6 +4096,9 @@ public final class HBaseProtos {
       if (((bitField0_ & 0x00000020) == 0x00000020)) {
         output.writeBool(6, split_);
       }
+      if (((bitField0_ & 0x00000040) == 0x00000040)) {
+        output.writeInt32(7, replicaId_);
+      }
       getUnknownFields().writeTo(output);
     }
 
@@ -4006,6 +4131,10 @@ public final class HBaseProtos {
       if (((bitField0_ & 0x00000020) == 0x00000020)) {
         size += com.google.protobuf.CodedOutputStream
           .computeBoolSize(6, split_);
+      }
+      if (((bitField0_ & 0x00000040) == 0x00000040)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeInt32Size(7, replicaId_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -4060,6 +4189,11 @@ public final class HBaseProtos {
         result = result && (getSplit()
             == other.getSplit());
       }
+      result = result && (hasReplicaId() == other.hasReplicaId());
+      if (hasReplicaId()) {
+        result = result && (getReplicaId()
+            == other.getReplicaId());
+      }
       result = result &&
           getUnknownFields().equals(other.getUnknownFields());
       return result;
@@ -4096,6 +4230,10 @@ public final class HBaseProtos {
       if (hasSplit()) {
         hash = (37 * hash) + SPLIT_FIELD_NUMBER;
         hash = (53 * hash) + hashBoolean(getSplit());
+      }
+      if (hasReplicaId()) {
+        hash = (37 * hash) + REPLICAID_FIELD_NUMBER;
+        hash = (53 * hash) + getReplicaId();
       }
       hash = (29 * hash) + getUnknownFields().hashCode();
       memoizedHashCode = hash;
@@ -4228,6 +4366,8 @@ public final class HBaseProtos {
         bitField0_ = (bitField0_ & ~0x00000010);
         split_ = false;
         bitField0_ = (bitField0_ & ~0x00000020);
+        replicaId_ = 0;
+        bitField0_ = (bitField0_ & ~0x00000040);
         return this;
       }
 
@@ -4284,6 +4424,10 @@ public final class HBaseProtos {
           to_bitField0_ |= 0x00000020;
         }
         result.split_ = split_;
+        if (((from_bitField0_ & 0x00000040) == 0x00000040)) {
+          to_bitField0_ |= 0x00000040;
+        }
+        result.replicaId_ = replicaId_;
         result.bitField0_ = to_bitField0_;
         onBuilt();
         return result;
@@ -4317,6 +4461,9 @@ public final class HBaseProtos {
         }
         if (other.hasSplit()) {
           setSplit(other.getSplit());
+        }
+        if (other.hasReplicaId()) {
+          setReplicaId(other.getReplicaId());
         }
         this.mergeUnknownFields(other.getUnknownFields());
         return this;
@@ -4641,6 +4788,39 @@ public final class HBaseProtos {
       public Builder clearSplit() {
         bitField0_ = (bitField0_ & ~0x00000020);
         split_ = false;
+        onChanged();
+        return this;
+      }
+
+      // optional int32 replicaId = 7 [default = 0];
+      private int replicaId_ ;
+      /**
+       * <code>optional int32 replicaId = 7 [default = 0];</code>
+       */
+      public boolean hasReplicaId() {
+        return ((bitField0_ & 0x00000040) == 0x00000040);
+      }
+      /**
+       * <code>optional int32 replicaId = 7 [default = 0];</code>
+       */
+      public int getReplicaId() {
+        return replicaId_;
+      }
+      /**
+       * <code>optional int32 replicaId = 7 [default = 0];</code>
+       */
+      public Builder setReplicaId(int value) {
+        bitField0_ |= 0x00000040;
+        replicaId_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>optional int32 replicaId = 7 [default = 0];</code>
+       */
+      public Builder clearReplicaId() {
+        bitField0_ = (bitField0_ & ~0x00000040);
+        replicaId_ = 0;
         onChanged();
         return this;
       }
@@ -14058,45 +14238,46 @@ public final class HBaseProtos {
   static {
     java.lang.String[] descriptorData = {
       "\n\013HBase.proto\032\nCell.proto\"1\n\tTableName\022\021" +
-      "\n\tnamespace\030\001 \002(\014\022\021\n\tqualifier\030\002 \002(\014\"\250\001\n" +
+      "\n\tnamespace\030\001 \002(\014\022\021\n\tqualifier\030\002 \002(\014\"\300\001\n" +
       "\013TableSchema\022\036\n\ntable_name\030\001 \001(\0132\n.Table" +
       "Name\022#\n\nattributes\030\002 \003(\0132\017.BytesBytesPai" +
       "r\022,\n\017column_families\030\003 \003(\0132\023.ColumnFamil" +
       "ySchema\022&\n\rconfiguration\030\004 \003(\0132\017.NameStr" +
-      "ingPair\"o\n\022ColumnFamilySchema\022\014\n\004name\030\001 " +
-      "\002(\014\022#\n\nattributes\030\002 \003(\0132\017.BytesBytesPair" +
-      "\022&\n\rconfiguration\030\003 \003(\0132\017.NameStringPair" +
-      "\"\203\001\n\nRegionInfo\022\021\n\tregion_id\030\001 \002(\004\022\036\n\nta",
-      "ble_name\030\002 \002(\0132\n.TableName\022\021\n\tstart_key\030" +
-      "\003 \001(\014\022\017\n\007end_key\030\004 \001(\014\022\017\n\007offline\030\005 \001(\010\022" +
-      "\r\n\005split\030\006 \001(\010\"1\n\014FavoredNodes\022!\n\014favore" +
-      "d_node\030\001 \003(\0132\013.ServerName\"\225\001\n\017RegionSpec" +
-      "ifier\0222\n\004type\030\001 \002(\0162$.RegionSpecifier.Re" +
-      "gionSpecifierType\022\r\n\005value\030\002 \002(\014\"?\n\023Regi" +
-      "onSpecifierType\022\017\n\013REGION_NAME\020\001\022\027\n\023ENCO" +
-      "DED_REGION_NAME\020\002\"%\n\tTimeRange\022\014\n\004from\030\001" +
-      " \001(\004\022\n\n\002to\030\002 \001(\004\"A\n\nServerName\022\021\n\thost_n" +
-      "ame\030\001 \002(\t\022\014\n\004port\030\002 \001(\r\022\022\n\nstart_code\030\003 ",
-      "\001(\004\"\033\n\013Coprocessor\022\014\n\004name\030\001 \002(\t\"-\n\016Name" +
-      "StringPair\022\014\n\004name\030\001 \002(\t\022\r\n\005value\030\002 \002(\t\"" +
-      ",\n\rNameBytesPair\022\014\n\004name\030\001 \002(\t\022\r\n\005value\030" +
-      "\002 \001(\014\"/\n\016BytesBytesPair\022\r\n\005first\030\001 \002(\014\022\016" +
-      "\n\006second\030\002 \002(\014\",\n\rNameInt64Pair\022\014\n\004name\030" +
-      "\001 \001(\t\022\r\n\005value\030\002 \001(\003\"\256\001\n\023SnapshotDescrip" +
-      "tion\022\014\n\004name\030\001 \002(\t\022\r\n\005table\030\002 \001(\t\022\030\n\rcre" +
-      "ation_time\030\003 \001(\003:\0010\022.\n\004type\030\004 \001(\0162\031.Snap" +
-      "shotDescription.Type:\005FLUSH\022\017\n\007version\030\005" +
-      " \001(\005\"\037\n\004Type\022\014\n\010DISABLED\020\000\022\t\n\005FLUSH\020\001\"\n\n",
-      "\010EmptyMsg\"\033\n\007LongMsg\022\020\n\010long_msg\030\001 \002(\003\"\'" +
-      "\n\rBigDecimalMsg\022\026\n\016bigdecimal_msg\030\001 \002(\014\"" +
-      "5\n\004UUID\022\026\n\016least_sig_bits\030\001 \002(\004\022\025\n\rmost_" +
-      "sig_bits\030\002 \002(\004\"K\n\023NamespaceDescriptor\022\014\n" +
-      "\004name\030\001 \002(\014\022&\n\rconfiguration\030\002 \003(\0132\017.Nam" +
-      "eStringPair*r\n\013CompareType\022\010\n\004LESS\020\000\022\021\n\r" +
-      "LESS_OR_EQUAL\020\001\022\t\n\005EQUAL\020\002\022\r\n\tNOT_EQUAL\020" +
-      "\003\022\024\n\020GREATER_OR_EQUAL\020\004\022\013\n\007GREATER\020\005\022\t\n\005" +
-      "NO_OP\020\006B>\n*org.apache.hadoop.hbase.proto" +
-      "buf.generatedB\013HBaseProtosH\001\240\001\001"
+      "ingPair\022\026\n\013numReplicas\030\005 \001(\005:\0011\"o\n\022Colum" +
+      "nFamilySchema\022\014\n\004name\030\001 \002(\014\022#\n\nattribute" +
+      "s\030\002 \003(\0132\017.BytesBytesPair\022&\n\rconfiguratio" +
+      "n\030\003 \003(\0132\017.NameStringPair\"\231\001\n\nRegionInfo\022",
+      "\021\n\tregion_id\030\001 \002(\004\022\036\n\ntable_name\030\002 \002(\0132\n" +
+      ".TableName\022\021\n\tstart_key\030\003 \001(\014\022\017\n\007end_key" +
+      "\030\004 \001(\014\022\017\n\007offline\030\005 \001(\010\022\r\n\005split\030\006 \001(\010\022\024" +
+      "\n\treplicaId\030\007 \001(\005:\0010\"1\n\014FavoredNodes\022!\n\014" +
+      "favored_node\030\001 \003(\0132\013.ServerName\"\225\001\n\017Regi" +
+      "onSpecifier\0222\n\004type\030\001 \002(\0162$.RegionSpecif" +
+      "ier.RegionSpecifierType\022\r\n\005value\030\002 \002(\014\"?" +
+      "\n\023RegionSpecifierType\022\017\n\013REGION_NAME\020\001\022\027" +
+      "\n\023ENCODED_REGION_NAME\020\002\"%\n\tTimeRange\022\014\n\004" +
+      "from\030\001 \001(\004\022\n\n\002to\030\002 \001(\004\"A\n\nServerName\022\021\n\t",
+      "host_name\030\001 \002(\t\022\014\n\004port\030\002 \001(\r\022\022\n\nstart_c" +
+      "ode\030\003 \001(\004\"\033\n\013Coprocessor\022\014\n\004name\030\001 \002(\t\"-" +
+      "\n\016NameStringPair\022\014\n\004name\030\001 \002(\t\022\r\n\005value\030" +
+      "\002 \002(\t\",\n\rNameBytesPair\022\014\n\004name\030\001 \002(\t\022\r\n\005" +
+      "value\030\002 \001(\014\"/\n\016BytesBytesPair\022\r\n\005first\030\001" +
+      " \002(\014\022\016\n\006second\030\002 \002(\014\",\n\rNameInt64Pair\022\014\n" +
+      "\004name\030\001 \001(\t\022\r\n\005value\030\002 \001(\003\"\256\001\n\023SnapshotD" +
+      "escription\022\014\n\004name\030\001 \002(\t\022\r\n\005table\030\002 \001(\t\022" +
+      "\030\n\rcreation_time\030\003 \001(\003:\0010\022.\n\004type\030\004 \001(\0162" +
+      "\031.SnapshotDescription.Type:\005FLUSH\022\017\n\007ver",
+      "sion\030\005 \001(\005\"\037\n\004Type\022\014\n\010DISABLED\020\000\022\t\n\005FLUS" +
+      "H\020\001\"\n\n\010EmptyMsg\"\033\n\007LongMsg\022\020\n\010long_msg\030\001" +
+      " \002(\003\"\'\n\rBigDecimalMsg\022\026\n\016bigdecimal_msg\030" +
+      "\001 \002(\014\"5\n\004UUID\022\026\n\016least_sig_bits\030\001 \002(\004\022\025\n" +
+      "\rmost_sig_bits\030\002 \002(\004\"K\n\023NamespaceDescrip" +
+      "tor\022\014\n\004name\030\001 \002(\014\022&\n\rconfiguration\030\002 \003(\013" +
+      "2\017.NameStringPair*r\n\013CompareType\022\010\n\004LESS" +
+      "\020\000\022\021\n\rLESS_OR_EQUAL\020\001\022\t\n\005EQUAL\020\002\022\r\n\tNOT_" +
+      "EQUAL\020\003\022\024\n\020GREATER_OR_EQUAL\020\004\022\013\n\007GREATER" +
+      "\020\005\022\t\n\005NO_OP\020\006B>\n*org.apache.hadoop.hbase",
+      ".protobuf.generatedB\013HBaseProtosH\001\240\001\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -14114,7 +14295,7 @@ public final class HBaseProtos {
           internal_static_TableSchema_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_TableSchema_descriptor,
-              new java.lang.String[] { "TableName", "Attributes", "ColumnFamilies", "Configuration", });
+              new java.lang.String[] { "TableName", "Attributes", "ColumnFamilies", "Configuration", "NumReplicas", });
           internal_static_ColumnFamilySchema_descriptor =
             getDescriptor().getMessageTypes().get(2);
           internal_static_ColumnFamilySchema_fieldAccessorTable = new
@@ -14126,7 +14307,7 @@ public final class HBaseProtos {
           internal_static_RegionInfo_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_RegionInfo_descriptor,
-              new java.lang.String[] { "RegionId", "TableName", "StartKey", "EndKey", "Offline", "Split", });
+              new java.lang.String[] { "RegionId", "TableName", "StartKey", "EndKey", "Offline", "Split", "ReplicaId", });
           internal_static_FavoredNodes_descriptor =
             getDescriptor().getMessageTypes().get(4);
           internal_static_FavoredNodes_fieldAccessorTable = new
