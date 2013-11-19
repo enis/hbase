@@ -324,7 +324,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     this.offLine = false;
     this.regionId = regionid;
 
-    this.regionName = createRegionName(this.tableName, startKey, regionId, true);
+    this.regionName = createRegionName(this.tableName, startKey, regionId, replicaId, true);
 
     this.regionNameStr = Bytes.toStringBinary(this.regionName);
     this.split = split;
@@ -352,6 +352,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     this.hashCode = other.hashCode();
     this.encodedName = other.getEncodedName();
     this.tableName = other.tableName;
+    this.replicaId = other.replicaId;
   }
 
   public HRegionInfo(HRegionInfo other, short replicaId) {
