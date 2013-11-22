@@ -277,8 +277,9 @@ public class MetaEditor {
   throws IOException {
     List<Put> puts = new ArrayList<Put>();
     for (HRegionInfo regionInfo : regionInfos) {
-      checkReplicaID(regionInfo);
-      puts.add(makePutFromRegionInfo(regionInfo));
+      if (regionInfo.getReplicaId() == HRegionInfo.REPLICA_ID_PRIMARY) {
+        puts.add(makePutFromRegionInfo(regionInfo));
+      }
     }
     putsToMetaTable(catalogTracker, puts);
     LOG.info("Added " + puts.size());
