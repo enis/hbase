@@ -219,6 +219,10 @@ module Hbase
           has_columns = true
           next
         end
+        if arg.has_key?(REPLICA)
+          replica = arg.delete(REPLICA)
+          htd.setNumRegionReplicas(replica)
+        end 
         
         # Get rid of the "METHOD", which is deprecated for create.
         # We'll do whatever it used to do below if it's table_att.

@@ -34,6 +34,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.hbase.KeyValue.KVComparator;
+import org.apache.hadoop.hbase.catalog.MetaReader;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
@@ -261,8 +262,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   public HRegionInfo(final TableName tableName, final byte[] startKey, final byte[] endKey,
       short replicaId)
   throws IllegalArgumentException {
-    this(tableName, startKey, endKey, false);
-    this.replicaId = replicaId;
+    this(tableName, startKey, endKey, false, System.currentTimeMillis(), replicaId);
   }
 
 
@@ -1129,12 +1129,31 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    * @return A ServerName instance or null if necessary fields not found or empty.
    */
   public static ServerName getServerName(final Result r) {
-    byte[] value = r.getValue(HConstants.CATALOG_FAMILY,
-      HConstants.SERVER_QUALIFIER);
+    return getReplicaName(r, HConstants.SERVER_QUALIFIER, 0);
+  }
+
+  /**
+   * Returns a {@link ServerName} from catalog table with a specific replicaId
+   * @param r
+   * @param replicaId
+   * @return
+   */
+  public static ServerName getReplicaName(final Result r, int replicaId) {
+    byte[] replicaIdQualifier = MetaReader.getServerColumn(replicaId);
+    return getReplicaName(r, replicaIdQualifier, replicaId);
+  }
+
+  /**
+   * Returns a {@link ServerName} from catalog table under a specific qualifier
+   * @param r
+   * @return
+   */
+  static ServerName getReplicaName(final Result r, byte[] qualifier, int replicaId) {
+    byte[] value = r.getValue(HConstants.CATALOG_FAMILY, qualifier);
     if (value == null || value.length == 0) return null;
     String hostAndPort = Bytes.toString(value);
-    value = r.getValue(HConstants.CATALOG_FAMILY,
-      HConstants.STARTCODE_QUALIFIER);
+    byte[] startcodeValue = MetaReader.getStartCodeColumn(replicaId);
+    value = r.getValue(HConstants.CATALOG_FAMILY, startcodeValue);
     if (value == null || value.length == 0) return null;
     return new ServerName(hostAndPort, Bytes.toLong(value));
   }

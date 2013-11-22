@@ -17,15 +17,24 @@
  */
 package org.apache.hadoop.hbase.catalog;
 
+import java.io.IOException;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeMap;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
@@ -33,14 +42,6 @@ import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Set;
-import java.util.TreeMap;
 
 /**
  * Reads region and assignment information from <code>hbase:meta</code>.
@@ -61,6 +62,9 @@ public class MetaReader {
     System.arraycopy(HRegionInfo.FIRST_META_REGIONINFO.getRegionName(), 0,
       META_REGION_PREFIX, 0, len);
   }
+
+  /** The delimiter for meta columns for replicaIds > 0 */
+  public static char META_REPLICA_ID_DELIMITER = '_';
 
   /**
    * Performs a full scan of <code>hbase:meta</code>, skipping regions from any
@@ -546,6 +550,32 @@ public class MetaReader {
       metaTable.close();
     }
     return;
+  }
+
+  private static final NumberFormat replicaIdFormatter = NumberFormat.getInstance();
+  static {
+    replicaIdFormatter.setMinimumIntegerDigits(5); // 100K replicas
+  }
+
+  public static byte[] getServerColumn(int replicaId) {
+    return replicaId == 0
+        ? HConstants.SERVER_QUALIFIER
+        : Bytes.toBytes(HConstants.SERVER_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
+          + replicaIdFormatter.format(replicaId));
+  }
+
+  public static byte[] getStartCodeColumn(int replicaId) {
+    return replicaId == 0
+        ? HConstants.STARTCODE_QUALIFIER
+        : Bytes.toBytes(HConstants.STARTCODE_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
+          + replicaIdFormatter.format(replicaId));
+  }
+
+  public static byte[] getSeqNumColumn(int replicaId) {
+    return replicaId == 0
+        ? HConstants.SEQNUM_QUALIFIER
+        : Bytes.toBytes(HConstants.SEQNUM_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
+          + replicaIdFormatter.format(replicaId));
   }
 
   /**

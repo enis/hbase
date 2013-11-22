@@ -103,7 +103,7 @@ public class SnapshotOfRegionAssignmentFromMeta {
           Pair<HRegionInfo, ServerName> regionAndServer =
               HRegionInfo.getHRegionInfoAndServerName(result);
           HRegionInfo hri = regionAndServer.getFirst();
-          if (hri  == null) return true;
+          if (hri == null) return true;
           if (hri.getTable() == null) return true;
           if (disabledTables.contains(hri.getTable())) {
             return true;

@@ -1102,6 +1102,10 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
     return numRegionReplicas;
   }
 
+  public void setNumRegionReplicas(int numRegionReplicas) {
+    this.numRegionReplicas = numRegionReplicas;
+  }
+
   /**
    * Returns all the column family names of the current table. The map of
    * HTableDescriptor contains mapping of family name to HColumnDescriptors.

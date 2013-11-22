@@ -3778,13 +3778,13 @@ public final class HBaseProtos {
      */
     boolean getSplit();
 
-    // optional int32 replicaId = 7 [default = 0];
+    // optional int32 replica_id = 7 [default = 0];
     /**
-     * <code>optional int32 replicaId = 7 [default = 0];</code>
+     * <code>optional int32 replica_id = 7 [default = 0];</code>
      */
     boolean hasReplicaId();
     /**
-     * <code>optional int32 replicaId = 7 [default = 0];</code>
+     * <code>optional int32 replica_id = 7 [default = 0];</code>
      */
     int getReplicaId();
   }
@@ -4029,17 +4029,17 @@ public final class HBaseProtos {
       return split_;
     }
 
-    // optional int32 replicaId = 7 [default = 0];
-    public static final int REPLICAID_FIELD_NUMBER = 7;
+    // optional int32 replica_id = 7 [default = 0];
+    public static final int REPLICA_ID_FIELD_NUMBER = 7;
     private int replicaId_;
     /**
-     * <code>optional int32 replicaId = 7 [default = 0];</code>
+     * <code>optional int32 replica_id = 7 [default = 0];</code>
      */
     public boolean hasReplicaId() {
       return ((bitField0_ & 0x00000040) == 0x00000040);
     }
     /**
-     * <code>optional int32 replicaId = 7 [default = 0];</code>
+     * <code>optional int32 replica_id = 7 [default = 0];</code>
      */
     public int getReplicaId() {
       return replicaId_;
@@ -4232,7 +4232,7 @@ public final class HBaseProtos {
         hash = (53 * hash) + hashBoolean(getSplit());
       }
       if (hasReplicaId()) {
-        hash = (37 * hash) + REPLICAID_FIELD_NUMBER;
+        hash = (37 * hash) + REPLICA_ID_FIELD_NUMBER;
         hash = (53 * hash) + getReplicaId();
       }
       hash = (29 * hash) + getUnknownFields().hashCode();
@@ -4792,22 +4792,22 @@ public final class HBaseProtos {
         return this;
       }
 
-      // optional int32 replicaId = 7 [default = 0];
+      // optional int32 replica_id = 7 [default = 0];
       private int replicaId_ ;
       /**
-       * <code>optional int32 replicaId = 7 [default = 0];</code>
+       * <code>optional int32 replica_id = 7 [default = 0];</code>
        */
       public boolean hasReplicaId() {
         return ((bitField0_ & 0x00000040) == 0x00000040);
       }
       /**
-       * <code>optional int32 replicaId = 7 [default = 0];</code>
+       * <code>optional int32 replica_id = 7 [default = 0];</code>
        */
       public int getReplicaId() {
         return replicaId_;
       }
       /**
-       * <code>optional int32 replicaId = 7 [default = 0];</code>
+       * <code>optional int32 replica_id = 7 [default = 0];</code>
        */
       public Builder setReplicaId(int value) {
         bitField0_ |= 0x00000040;
@@ -4816,7 +4816,7 @@ public final class HBaseProtos {
         return this;
       }
       /**
-       * <code>optional int32 replicaId = 7 [default = 0];</code>
+       * <code>optional int32 replica_id = 7 [default = 0];</code>
        */
       public Builder clearReplicaId() {
         bitField0_ = (bitField0_ & ~0x00000040);
@@ -14246,38 +14246,38 @@ public final class HBaseProtos {
       "ingPair\022\026\n\013numReplicas\030\005 \001(\005:\0011\"o\n\022Colum" +
       "nFamilySchema\022\014\n\004name\030\001 \002(\014\022#\n\nattribute" +
       "s\030\002 \003(\0132\017.BytesBytesPair\022&\n\rconfiguratio" +
-      "n\030\003 \003(\0132\017.NameStringPair\"\231\001\n\nRegionInfo\022",
+      "n\030\003 \003(\0132\017.NameStringPair\"\232\001\n\nRegionInfo\022",
       "\021\n\tregion_id\030\001 \002(\004\022\036\n\ntable_name\030\002 \002(\0132\n" +
       ".TableName\022\021\n\tstart_key\030\003 \001(\014\022\017\n\007end_key" +
-      "\030\004 \001(\014\022\017\n\007offline\030\005 \001(\010\022\r\n\005split\030\006 \001(\010\022\024" +
-      "\n\treplicaId\030\007 \001(\005:\0010\"1\n\014FavoredNodes\022!\n\014" +
-      "favored_node\030\001 \003(\0132\013.ServerName\"\225\001\n\017Regi" +
-      "onSpecifier\0222\n\004type\030\001 \002(\0162$.RegionSpecif" +
-      "ier.RegionSpecifierType\022\r\n\005value\030\002 \002(\014\"?" +
-      "\n\023RegionSpecifierType\022\017\n\013REGION_NAME\020\001\022\027" +
-      "\n\023ENCODED_REGION_NAME\020\002\"%\n\tTimeRange\022\014\n\004" +
-      "from\030\001 \001(\004\022\n\n\002to\030\002 \001(\004\"A\n\nServerName\022\021\n\t",
-      "host_name\030\001 \002(\t\022\014\n\004port\030\002 \001(\r\022\022\n\nstart_c" +
-      "ode\030\003 \001(\004\"\033\n\013Coprocessor\022\014\n\004name\030\001 \002(\t\"-" +
-      "\n\016NameStringPair\022\014\n\004name\030\001 \002(\t\022\r\n\005value\030" +
-      "\002 \002(\t\",\n\rNameBytesPair\022\014\n\004name\030\001 \002(\t\022\r\n\005" +
-      "value\030\002 \001(\014\"/\n\016BytesBytesPair\022\r\n\005first\030\001" +
-      " \002(\014\022\016\n\006second\030\002 \002(\014\",\n\rNameInt64Pair\022\014\n" +
-      "\004name\030\001 \001(\t\022\r\n\005value\030\002 \001(\003\"\256\001\n\023SnapshotD" +
-      "escription\022\014\n\004name\030\001 \002(\t\022\r\n\005table\030\002 \001(\t\022" +
-      "\030\n\rcreation_time\030\003 \001(\003:\0010\022.\n\004type\030\004 \001(\0162" +
-      "\031.SnapshotDescription.Type:\005FLUSH\022\017\n\007ver",
-      "sion\030\005 \001(\005\"\037\n\004Type\022\014\n\010DISABLED\020\000\022\t\n\005FLUS" +
-      "H\020\001\"\n\n\010EmptyMsg\"\033\n\007LongMsg\022\020\n\010long_msg\030\001" +
-      " \002(\003\"\'\n\rBigDecimalMsg\022\026\n\016bigdecimal_msg\030" +
-      "\001 \002(\014\"5\n\004UUID\022\026\n\016least_sig_bits\030\001 \002(\004\022\025\n" +
-      "\rmost_sig_bits\030\002 \002(\004\"K\n\023NamespaceDescrip" +
-      "tor\022\014\n\004name\030\001 \002(\014\022&\n\rconfiguration\030\002 \003(\013" +
-      "2\017.NameStringPair*r\n\013CompareType\022\010\n\004LESS" +
-      "\020\000\022\021\n\rLESS_OR_EQUAL\020\001\022\t\n\005EQUAL\020\002\022\r\n\tNOT_" +
-      "EQUAL\020\003\022\024\n\020GREATER_OR_EQUAL\020\004\022\013\n\007GREATER" +
-      "\020\005\022\t\n\005NO_OP\020\006B>\n*org.apache.hadoop.hbase",
-      ".protobuf.generatedB\013HBaseProtosH\001\240\001\001"
+      "\030\004 \001(\014\022\017\n\007offline\030\005 \001(\010\022\r\n\005split\030\006 \001(\010\022\025" +
+      "\n\nreplica_id\030\007 \001(\005:\0010\"1\n\014FavoredNodes\022!\n" +
+      "\014favored_node\030\001 \003(\0132\013.ServerName\"\225\001\n\017Reg" +
+      "ionSpecifier\0222\n\004type\030\001 \002(\0162$.RegionSpeci" +
+      "fier.RegionSpecifierType\022\r\n\005value\030\002 \002(\014\"" +
+      "?\n\023RegionSpecifierType\022\017\n\013REGION_NAME\020\001\022" +
+      "\027\n\023ENCODED_REGION_NAME\020\002\"%\n\tTimeRange\022\014\n" +
+      "\004from\030\001 \001(\004\022\n\n\002to\030\002 \001(\004\"A\n\nServerName\022\021\n",
+      "\thost_name\030\001 \002(\t\022\014\n\004port\030\002 \001(\r\022\022\n\nstart_" +
+      "code\030\003 \001(\004\"\033\n\013Coprocessor\022\014\n\004name\030\001 \002(\t\"" +
+      "-\n\016NameStringPair\022\014\n\004name\030\001 \002(\t\022\r\n\005value" +
+      "\030\002 \002(\t\",\n\rNameBytesPair\022\014\n\004name\030\001 \002(\t\022\r\n" +
+      "\005value\030\002 \001(\014\"/\n\016BytesBytesPair\022\r\n\005first\030" +
+      "\001 \002(\014\022\016\n\006second\030\002 \002(\014\",\n\rNameInt64Pair\022\014" +
+      "\n\004name\030\001 \001(\t\022\r\n\005value\030\002 \001(\003\"\256\001\n\023Snapshot" +
+      "Description\022\014\n\004name\030\001 \002(\t\022\r\n\005table\030\002 \001(\t" +
+      "\022\030\n\rcreation_time\030\003 \001(\003:\0010\022.\n\004type\030\004 \001(\016" +
+      "2\031.SnapshotDescription.Type:\005FLUSH\022\017\n\007ve",
+      "rsion\030\005 \001(\005\"\037\n\004Type\022\014\n\010DISABLED\020\000\022\t\n\005FLU" +
+      "SH\020\001\"\n\n\010EmptyMsg\"\033\n\007LongMsg\022\020\n\010long_msg\030" +
+      "\001 \002(\003\"\'\n\rBigDecimalMsg\022\026\n\016bigdecimal_msg" +
+      "\030\001 \002(\014\"5\n\004UUID\022\026\n\016least_sig_bits\030\001 \002(\004\022\025" +
+      "\n\rmost_sig_bits\030\002 \002(\004\"K\n\023NamespaceDescri" +
+      "ptor\022\014\n\004name\030\001 \002(\014\022&\n\rconfiguration\030\002 \003(" +
+      "\0132\017.NameStringPair*r\n\013CompareType\022\010\n\004LES" +
+      "S\020\000\022\021\n\rLESS_OR_EQUAL\020\001\022\t\n\005EQUAL\020\002\022\r\n\tNOT" +
+      "_EQUAL\020\003\022\024\n\020GREATER_OR_EQUAL\020\004\022\013\n\007GREATE" +
+      "R\020\005\022\t\n\005NO_OP\020\006B>\n*org.apache.hadoop.hbas",
+      "e.protobuf.generatedB\013HBaseProtosH\001\240\001\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
