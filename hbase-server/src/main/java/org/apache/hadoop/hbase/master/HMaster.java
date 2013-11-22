@@ -1802,7 +1802,7 @@ MasterServices, Server {
       byte[] endKey = null;
       for (int i = 0; i < numRegions; i++) {
         endKey = (i == splitKeys.length) ? null : splitKeys[i];
-        for (int j = 0; i < numRegionReplicas; j++) {
+        for (int j = 0; j < numRegionReplicas; j++) {
           hRegionInfos[i] =
               new HRegionInfo(hTableDescriptor.getTableName(), startKey, endKey,
                   (short)j);
