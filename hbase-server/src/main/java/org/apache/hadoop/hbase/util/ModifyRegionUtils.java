@@ -91,8 +91,13 @@ public abstract class ModifyRegionUtils {
     CompletionService<HRegionInfo> completionService = new ExecutorCompletionService<HRegionInfo>(
         regionOpenAndInitThreadPool);
     List<HRegionInfo> regionInfos = new ArrayList<HRegionInfo>();
+    int primaryRegions = 0;
     for (final HRegionInfo newRegion : newRegions) {
-      if (!newRegion.isPrimaryReplica()) continue;
+      if (!newRegion.isPrimaryReplica()) {
+        regionInfos.add(newRegion); //TODO: can't we do this for both primary and replicas
+        continue;
+      }
+      primaryRegions++;
       completionService.submit(new Callable<HRegionInfo>() {
         public HRegionInfo call() throws IOException {
           // 1. Create HRegion
@@ -114,7 +119,7 @@ public abstract class ModifyRegionUtils {
     }
     try {
       // 4. wait for all regions to finish creation
-      for (int i = 0; i < regionNumber; i++) {
+      for (int i = 0; i < primaryRegions; i++) {
         Future<HRegionInfo> future = completionService.take();
         HRegionInfo regionInfo = future.get();
         regionInfos.add(regionInfo);

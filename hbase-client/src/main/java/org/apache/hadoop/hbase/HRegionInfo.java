@@ -115,7 +115,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   /** A non-capture group so that this can be embedded. */
   public static final String ENCODED_REGION_NAME_REGEX = "(?:[a-f0-9]+)";
 
-  public static final short REPLICA_ID_PRIMARY = 0;
+  public static final int REPLICA_ID_PRIMARY = 0;
   /**
    * Does region name contain its encoded name?
    * @param regionName region name
@@ -189,7 +189,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   public static final String NO_HASH = null;
   private volatile String encodedName = NO_HASH;
   private byte [] encodedNameAsBytes = null;
-  private short replicaId;
+  private int replicaId;
 
   // Current TableName
   private TableName tableName = null;
@@ -234,7 +234,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   }
 
   public HRegionInfo(final TableName tableName) {
-    this(tableName, null, null, (short)0);
+    this(tableName, null, null, 0);
   }
 
   /**
@@ -260,7 +260,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    * @throws IllegalArgumentException
    */
   public HRegionInfo(final TableName tableName, final byte[] startKey, final byte[] endKey,
-      short replicaId)
+      int replicaId)
   throws IllegalArgumentException {
     this(tableName, startKey, endKey, false, System.currentTimeMillis(), replicaId);
   }
@@ -332,6 +332,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     this.startKey = startKey == null?
       HConstants.EMPTY_START_ROW: startKey.clone();
     this.tableName = tableName;
+    this.replicaId = replicaId;
     setHashCode();
   }
 
@@ -355,17 +356,12 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     this.replicaId = other.replicaId;
   }
 
-  public HRegionInfo(HRegionInfo other, short replicaId) {
-    this(other);
-    this.replicaId = replicaId;
-  }
-
-  public short getReplicaId() {
+  public int getReplicaId() {
     return this.replicaId;
   }
 
   public boolean isPrimaryReplica() {
-    return this.replicaId == (short)0;
+    return this.replicaId == HRegionInfo.REPLICA_ID_PRIMARY;
   }
 
   /**
@@ -381,7 +377,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   }
 
   public void setReplicaId(int replicaId) {
-    this.replicaId = (short)replicaId;
+    this.replicaId = replicaId;
   }
 
   /**
@@ -1284,23 +1280,5 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
       return true;
     }
     return false;
-  }
-
-  /**
-   * Create the replica instances
-   * @param hris
-   * @param numReplicas
-   * @return
-   */
-  public static List<HRegionInfo> createRegionReplicaInstances(List<HRegionInfo> hris,
-      int numReplicas) {
-    List<HRegionInfo> replicas = new ArrayList<HRegionInfo>();
-    for (HRegionInfo h : hris) {
-      int i = 0;
-      while (i <= numReplicas) {
-        replicas.add(new HRegionInfo(h, (short)i++));
-      }
-    }
-    return replicas;
   }
 }
