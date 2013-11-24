@@ -1789,11 +1789,12 @@ MasterServices, Server {
       LOG.warn("Invalid number of replicas per region in the table descriptor. Setting it to 1.");
       numRegionReplicas = 1;
     }
+    long regionId = System.currentTimeMillis();
     if (splitKeys == null || splitKeys.length == 0) {
       for (int i = 0; i < numRegionReplicas; i++) {
         hRegionInfos = new HRegionInfo[]{
             new HRegionInfo(hTableDescriptor.getTableName(), null, null,
-                (short)i)};
+                false, regionId, (short)i)};
       }
     } else {
       int numRegions = splitKeys.length + 1;
@@ -1805,7 +1806,7 @@ MasterServices, Server {
         for (int j = 0; j < numRegionReplicas; j++) {
           hRegionInfos[i] =
               new HRegionInfo(hTableDescriptor.getTableName(), startKey, endKey,
-                  (short)j);
+                  false, regionId, (short)j);
         }
         startKey = endKey;
       }

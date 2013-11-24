@@ -369,11 +369,14 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    * @return HRI object for the primary region replica.
    */
   public HRegionInfo getPrimaryRegionInfo() {
-    if (this.replicaId == REPLICA_ID_PRIMARY) {
+    return getRegionInfoForReplica(REPLICA_ID_PRIMARY);
+  }
+
+  public HRegionInfo getRegionInfoForReplica(int replicaId) {
+    if (this.replicaId == replicaId) {
       return this;
     }
-    return new HRegionInfo(tableName, startKey, endKey, split, regionId,
-      REPLICA_ID_PRIMARY);
+    return new HRegionInfo(tableName, startKey, endKey, split, regionId, replicaId);
   }
 
   public void setReplicaId(int replicaId) {

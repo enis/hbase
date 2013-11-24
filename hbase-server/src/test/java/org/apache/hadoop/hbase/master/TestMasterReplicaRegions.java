@@ -25,8 +25,11 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.catalog.CatalogTracker;
+import org.apache.hadoop.hbase.catalog.MetaReader;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
@@ -61,14 +64,17 @@ public class TestMasterReplicaRegions {
     desc.addFamily(new HColumnDescriptor("family"));
     admin.createTable(desc, Bytes.toBytes("A"), Bytes.toBytes("Z"), numRegions);
     assert(admin.tableExists(table));
-    List<byte[]> rows = TEST_UTIL.getMetaTableRows(table);
-    assert(rows.size() == numRegions); //only primary regions
-    for (byte[] row : rows) {
-      LOG.info(row);
+    CatalogTracker ct = new CatalogTracker(TEST_UTIL.getConfiguration());
+    List<HRegionInfo> hris = MetaReader.getTableRegions(ct, table);
+    assert(hris.size() == numRegions); //only primary regions
+    // check that the master created expected number of RegionState objects
+    for (int i = 0; i < numRegions; i++) {
+      for (int j = 0; j < numReplica; j++) {
+        HRegionInfo replica = hris.get(i).getRegionInfoForReplica(j);
+        RegionState state = TEST_UTIL.getHBaseCluster().getMaster().getAssignmentManager()
+            .getRegionStates().getRegionState(replica);
+        assert (state != null);
+      }
     }
-    assert(TEST_UTIL.getMiniHBaseCluster().getMaster().getAssignmentManager().getRegionStates()
-        .getAssignmentsByTable().size() == numRegions * numReplica);
-    //assert(false);
-    //SnapshotOfRegionAssignmentFromMeta snapShot = new SnapshotOfRegionAssignmentFromMeta(tracker)
   }
 }
