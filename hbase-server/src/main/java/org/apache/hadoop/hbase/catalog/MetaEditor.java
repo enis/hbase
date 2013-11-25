@@ -19,7 +19,6 @@ package org.apache.hadoop.hbase.catalog;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
-import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -415,29 +414,6 @@ public class MetaEditor {
     }
   }
 
-
-  /**
-   * Updates the location of the specified hbase:meta region in ROOT to be the
-   * specified server hostname and startcode.
-   * <p>
-   * Uses passed catalog tracker to get a connection to the server hosting
-   * ROOT and makes edits to that region.
-   *
-   * @param catalogTracker catalog tracker
-   * @param regionInfo region to update location of
-   * @param sn Server name
-   * @param openSeqNum the latest sequence number obtained when the region was open
-   * @throws IOException
-   * @throws ConnectException Usually because the regionserver carrying hbase:meta
-   * is down.
-   * @throws NullPointerException Because no -ROOT- server connection
-   */
-  public static void updateMetaLocation(CatalogTracker catalogTracker,
-      HRegionInfo regionInfo, ServerName sn, long openSeqNum)
-  throws IOException, ConnectException {
-    updateLocation(catalogTracker, regionInfo.getPrimaryRegionInfo(), sn, openSeqNum);
-  }
-
   /**
    * Updates the location of the specified region in hbase:meta to be the specified
    * server hostname and startcode.
@@ -453,7 +429,7 @@ public class MetaEditor {
   public static void updateRegionLocation(CatalogTracker catalogTracker,
       HRegionInfo regionInfo, ServerName sn, long updateSeqNum)
   throws IOException {
-    updateLocation(catalogTracker, regionInfo.getPrimaryRegionInfo(), sn, updateSeqNum);
+    updateLocation(catalogTracker, regionInfo, sn, updateSeqNum);
   }
 
   /**

@@ -49,6 +49,7 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
  * like an HBaseConfiguration and filesystem.
  * @deprecated Write junit4 unit tests using {@link HBaseTestingUtility}
  */
+@Deprecated
 public abstract class HBaseTestCase extends TestCase {
   private static final Log LOG = LogFactory.getLog(HBaseTestCase.class);
 
@@ -155,7 +156,7 @@ public abstract class HBaseTestCase extends TestCase {
   public HRegion createNewHRegion(HTableDescriptor desc, byte [] startKey,
       byte [] endKey, Configuration conf)
   throws IOException {
-    HRegionInfo hri = new HRegionInfo(desc.getTableName(), startKey, endKey, (short)0);
+    HRegionInfo hri = new HRegionInfo(desc.getTableName(), startKey, endKey);
     return HRegion.createHRegion(hri, testDir, conf, desc);
   }
 
@@ -300,7 +301,7 @@ public abstract class HBaseTestCase extends TestCase {
    * @throws IOException
    */
   public static long addContent(final Incommon updater,
-                                   final String columnFamily, 
+                                   final String columnFamily,
                                    final String column,
       final byte [] startKeyBytes, final byte [] endKey, final long ts)
   throws IOException {
@@ -434,19 +435,23 @@ public abstract class HBaseTestCase extends TestCase {
       this.region = HRegion;
     }
 
+    @Override
     public void put(Put put) throws IOException {
       region.put(put);
     }
 
+    @Override
     public void delete(Delete delete,  boolean writeToWAL)
     throws IOException {
       this.region.delete(delete);
     }
 
+    @Override
     public Result get(Get get) throws IOException {
       return region.get(get);
     }
 
+    @Override
     public ScannerIncommon getScanner(byte [] family, byte [][] qualifiers,
         byte [] firstRow, long ts)
       throws IOException {
@@ -463,6 +468,7 @@ public abstract class HBaseTestCase extends TestCase {
           InternalScannerIncommon(region.getScanner(scan));
       }
 
+    @Override
     public void flushcache() throws IOException {
       this.region.flushcache();
     }
@@ -482,20 +488,24 @@ public abstract class HBaseTestCase extends TestCase {
       this.table = table;
     }
 
+    @Override
     public void put(Put put) throws IOException {
       table.put(put);
     }
 
 
+    @Override
     public void delete(Delete delete, boolean writeToWAL)
     throws IOException {
       this.table.delete(delete);
     }
 
+    @Override
     public Result get(Get get) throws IOException {
       return table.get(get);
     }
 
+    @Override
     public ScannerIncommon getScanner(byte [] family, byte [][] qualifiers,
         byte [] firstRow, long ts)
       throws IOException {
@@ -539,10 +549,12 @@ public abstract class HBaseTestCase extends TestCase {
       return true;
     }
 
+    @Override
     public void close() throws IOException {
       scanner.close();
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public Iterator<Result> iterator() {
       return scanner.iterator();

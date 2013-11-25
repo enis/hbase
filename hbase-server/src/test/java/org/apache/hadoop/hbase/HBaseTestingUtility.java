@@ -164,6 +164,7 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
    *  mini dfs.
    *  @deprecated can be used only with mini dfs
    */
+  @Deprecated
   private static final String TEST_DIRECTORY_KEY = "test.build.data";
 
   /** Filesystem URI used for map-reduce mini-cluster setup */
@@ -1737,6 +1738,15 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       Put put = new Put(data);
       put.add(f, null, data);
       t.put(put);
+    }
+  }
+
+  public void deleteNumericRows(final HTable t, final byte[] f, int startRow, int endRow) throws IOException {
+    for (int i = startRow; i < endRow; i++) {
+      byte[] data = Bytes.toBytes(String.valueOf(i));
+      Delete delete = new Delete(data);
+      delete.deleteFamily(f);
+      t.delete(delete);
     }
   }
 

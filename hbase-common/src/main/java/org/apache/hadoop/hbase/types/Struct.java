@@ -96,7 +96,7 @@ public class Struct implements DataType<Object[]> {
    * </p>
    */
   @SuppressWarnings("rawtypes")
-  public Struct(DataType[] memberTypes) {
+  public Struct(DataType... memberTypes) {
     this.fields = memberTypes;
     // a Struct is not orderPreserving when any of its fields are not.
     boolean preservesOrder = true;

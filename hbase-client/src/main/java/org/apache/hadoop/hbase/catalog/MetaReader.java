@@ -18,7 +18,6 @@
 package org.apache.hadoop.hbase.catalog;
 
 import java.io.IOException;
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -232,6 +231,7 @@ public class MetaReader {
   public static Pair<HRegionInfo, ServerName> getRegion(
       CatalogTracker catalogTracker, byte [] regionName)
   throws IOException {
+    // TODO: fix for region replicas
     Get get = new Get(regionName);
     get.addFamily(HConstants.CATALOG_FAMILY);
     Result r = get(getCatalogHTable(catalogTracker), get);
@@ -552,30 +552,25 @@ public class MetaReader {
     return;
   }
 
-  private static final NumberFormat replicaIdFormatter = NumberFormat.getInstance();
-  static {
-    replicaIdFormatter.setMinimumIntegerDigits(5); // 100K replicas
-  }
-
   public static byte[] getServerColumn(int replicaId) {
     return replicaId == 0
         ? HConstants.SERVER_QUALIFIER
         : Bytes.toBytes(HConstants.SERVER_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
-          + replicaIdFormatter.format(replicaId));
+          + HRegionInfo.REPLICA_ID_FORMAT.format(replicaId));
   }
 
   public static byte[] getStartCodeColumn(int replicaId) {
     return replicaId == 0
         ? HConstants.STARTCODE_QUALIFIER
         : Bytes.toBytes(HConstants.STARTCODE_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
-          + replicaIdFormatter.format(replicaId));
+          + HRegionInfo.REPLICA_ID_FORMAT.format(replicaId));
   }
 
   public static byte[] getSeqNumColumn(int replicaId) {
     return replicaId == 0
         ? HConstants.SEQNUM_QUALIFIER
         : Bytes.toBytes(HConstants.SEQNUM_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
-          + replicaIdFormatter.format(replicaId));
+          + HRegionInfo.REPLICA_ID_FORMAT.format(replicaId));
   }
 
   /**

@@ -92,8 +92,8 @@ import org.apache.hadoop.hbase.client.IsolationLevel;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.RowMutations;
 import org.apache.hadoop.hbase.client.Row;
+import org.apache.hadoop.hbase.client.RowMutations;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.errorhandling.ForeignExceptionSnare;
 import org.apache.hadoop.hbase.exceptions.FailedSanityCheckException;
@@ -355,6 +355,8 @@ public class HRegion implements HeapSize { // , Writable{
     volatile boolean writesEnabled = true;
     // Set if region is read-only
     volatile boolean readOnly = false;
+    // Whether this is the primary replica
+    volatile boolean isPrimaryReplica = true;
 
     /**
      * Set flags that make this region read-only.
@@ -374,8 +376,13 @@ public class HRegion implements HeapSize { // , Writable{
       return this.flushRequested;
     }
 
+    void setReplicaStatus(boolean isPrimaryReplica) {
+      this.isPrimaryReplica = isPrimaryReplica;
+      setReadOnly(!isPrimaryReplica); // only primary can accept writes
+    }
+
     static final long HEAP_SIZE = ClassSize.align(
-        ClassSize.OBJECT + 5 * Bytes.SIZEOF_BOOLEAN);
+        ClassSize.OBJECT + 6 * Bytes.SIZEOF_BOOLEAN);
   }
 
   final WriteState writestate = new WriteState();
@@ -623,6 +630,7 @@ public class HRegion implements HeapSize { // , Writable{
     fs.cleanupMergesDir();
 
     this.writestate.setReadOnly(this.htableDescriptor.isReadOnly());
+    this.writestate.setReplicaStatus(this.getRegionInfo().getReplicaId() == 0);
     this.writestate.flushRequested = false;
     this.writestate.compacting = 0;
 
@@ -1620,7 +1628,7 @@ public class HRegion implements HeapSize { // , Writable{
 
     // Record latest flush time
     this.lastFlushTime = EnvironmentEdgeManager.currentTimeMillis();
-    
+
     // Update the last flushed sequence id for region
     if (this.rsServices != null) {
       completeSequenceId = flushSeqId;
@@ -4667,7 +4675,7 @@ public class HRegion implements HeapSize { // , Writable{
 
             Store store = stores.get(family.getKey());
             List<Cell> kvs = new ArrayList<Cell>(family.getValue().size());
-  
+
             Collections.sort(family.getValue(), store.getComparator());
             // Get previous values for all columns in this family
             Get get = new Get(row);
@@ -4676,7 +4684,7 @@ public class HRegion implements HeapSize { // , Writable{
               get.addColumn(family.getKey(), kv.getQualifier());
             }
             List<Cell> results = get(get, false);
-  
+
             // Iterate the input columns and update existing values if they were
             // found, otherwise add new column initialized to the append value
 
@@ -4722,7 +4730,7 @@ public class HRegion implements HeapSize { // , Writable{
               System.arraycopy(kv.getBuffer(), kv.getQualifierOffset(),
                   newKV.getBuffer(), newKV.getQualifierOffset(),
                   kv.getQualifierLength());
-  
+
               newKV.setMvccVersion(w.getWriteNumber());
               kvs.add(newKV);
 
@@ -4851,7 +4859,7 @@ public class HRegion implements HeapSize { // , Writable{
             }
             get.setTimeRange(tr.getMin(), tr.getMax());
             List<Cell> results = get(get, false);
-  
+
             // Iterate the input columns and update existing values if they were
             // found, otherwise add new column initialized to the increment amount
             int idx = 0;

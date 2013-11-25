@@ -72,10 +72,11 @@ public class HRegionFileSystem {
   private static final String REGION_TEMP_DIR = ".tmp";
 
   private final HRegionInfo regionInfo;
+  private final HRegionInfo primaryRegionInfo;
   private final Configuration conf;
   private final Path tableDir;
   private final FileSystem fs;
-  
+
   /**
    * In order to handle NN connectivity hiccups, one need to retry non-idempotent operation at the
    * client level.
@@ -98,6 +99,7 @@ public class HRegionFileSystem {
     this.conf = conf;
     this.tableDir = tableDir;
     this.regionInfo = regionInfo;
+    this.primaryRegionInfo = regionInfo.getPrimaryRegionInfo(); // refer to the primary replica on disk
     this.hdfsClientRetriesNumber = conf.getInt("hdfs.client.retries.number",
       DEFAULT_HDFS_CLIENT_RETRIES_NUMBER);
     this.baseSleepBeforeRetries = conf.getInt("hdfs.client.sleep.before.retries",
@@ -121,7 +123,7 @@ public class HRegionFileSystem {
 
   /** @return {@link Path} to the region directory. */
   public Path getRegionDir() {
-    return new Path(this.tableDir, this.regionInfo.getEncodedName());
+    return new Path(this.tableDir, this.primaryRegionInfo.getEncodedName());
   }
 
   // ===========================================================================
@@ -203,6 +205,7 @@ public class HRegionFileSystem {
   public boolean hasReferences(final String familyName) throws IOException {
     FileStatus[] files = FSUtils.listStatus(fs, getStoreDir(familyName),
       new PathFilter () {
+        @Override
         public boolean accept(Path path) {
           return StoreFileInfo.isReference(path);
         }
@@ -249,14 +252,14 @@ public class HRegionFileSystem {
    */
   public void deleteFamily(final String familyName) throws IOException {
     // archive family store files
-    HFileArchiver.archiveFamily(fs, conf, regionInfo, tableDir, Bytes.toBytes(familyName));
+    HFileArchiver.archiveFamily(fs, conf, primaryRegionInfo, tableDir, Bytes.toBytes(familyName));
 
     // delete the family folder
     Path familyDir = getStoreDir(familyName);
     if(fs.exists(familyDir) && !deleteDir(familyDir))
       throw new IOException("Could not delete family " + familyName
-          + " from FileSystem for region " + regionInfo.getRegionNameAsString() + "("
-          + regionInfo.getEncodedName() + ")");
+          + " from FileSystem for region " + primaryRegionInfo.getRegionNameAsString() + "("
+          + primaryRegionInfo.getEncodedName() + ")");
   }
 
   /**
@@ -326,7 +329,7 @@ public class HRegionFileSystem {
     Path storeDir = getStoreDir(familyName);
     if(!fs.exists(storeDir) && !createDir(storeDir))
       throw new IOException("Failed creating " + storeDir);
-    
+
     String name = buildPath.getName();
     if (generateNewName) {
       name = generateUniqueName((seqNum < 0) ? null : "_SeqId_" + seqNum + "_");
@@ -366,7 +369,7 @@ public class HRegionFileSystem {
    */
   public void removeStoreFile(final String familyName, final Path filePath)
       throws IOException {
-    HFileArchiver.archiveStoreFile(this.conf, this.fs, this.regionInfo,
+    HFileArchiver.archiveStoreFile(this.conf, this.fs, this.primaryRegionInfo,
         this.tableDir, Bytes.toBytes(familyName), filePath);
   }
 
@@ -378,7 +381,7 @@ public class HRegionFileSystem {
    */
   public void removeStoreFiles(final String familyName, final Collection<StoreFile> storeFiles)
       throws IOException {
-    HFileArchiver.archiveStoreFiles(this.conf, this.fs, this.regionInfo,
+    HFileArchiver.archiveStoreFiles(this.conf, this.fs, this.primaryRegionInfo,
         this.tableDir, Bytes.toBytes(familyName), storeFiles);
   }
 
@@ -520,16 +523,16 @@ public class HRegionFileSystem {
    */
   Path splitStoreFile(final HRegionInfo hri, final String familyName,
       final StoreFile f, final byte[] splitRow, final boolean top) throws IOException {
-    
+
     // Check whether the split row lies in the range of the store file
     // If it is outside the range, return directly.
     if (top) {
       //check if larger than last key.
       KeyValue splitKey = KeyValue.createFirstOnRow(splitRow);
-      byte[] lastKey = f.createReader().getLastKey();      
+      byte[] lastKey = f.createReader().getLastKey();
       // If lastKey is null means storefile is empty.
       if (lastKey == null) return null;
-      if (f.getReader().getComparator().compareFlatKey(splitKey.getBuffer(), 
+      if (f.getReader().getComparator().compareFlatKey(splitKey.getBuffer(),
           splitKey.getKeyOffset(), splitKey.getKeyLength(), lastKey, 0, lastKey.length) > 0) {
         return null;
       }
@@ -539,14 +542,14 @@ public class HRegionFileSystem {
       byte[] firstKey = f.createReader().getFirstKey();
       // If firstKey is null means storefile is empty.
       if (firstKey == null) return null;
-      if (f.getReader().getComparator().compareFlatKey(splitKey.getBuffer(), 
+      if (f.getReader().getComparator().compareFlatKey(splitKey.getBuffer(),
           splitKey.getKeyOffset(), splitKey.getKeyLength(), firstKey, 0, firstKey.length) < 0) {
         return null;
-      }      
+      }
     }
- 
+
     f.getReader().close(true);
-    
+
     Path splitDir = new Path(getSplitsDir(hri), familyName);
     // A reference to the bottom half of the hsf store file.
     Reference r =
@@ -555,7 +558,7 @@ public class HRegionFileSystem {
     // See REF_NAME_REGEX regex above.  The referred-to regions name is
     // up in the path of the passed in <code>f</code> -- parentdir is family,
     // then the directory above is the region name.
-    String parentRegionName = regionInfo.getEncodedName();
+    String parentRegionName = primaryRegionInfo.getEncodedName();
     // Write reference with same file id only with the other region name as
     // suffix and into the new region location (under same family).
     Path p = new Path(splitDir, f.getPath().getName() + "." + parentRegionName);
@@ -628,12 +631,12 @@ public class HRegionFileSystem {
     Path referenceDir = new Path(new Path(mergedDir,
         mergedRegion.getEncodedName()), familyName);
     // A whole reference to the store file.
-    Reference r = Reference.createTopReference(regionInfo.getStartKey());
+    Reference r = Reference.createTopReference(primaryRegionInfo.getStartKey());
     // Add the referred-to regions name as a dot separated suffix.
     // See REF_NAME_REGEX regex above. The referred-to regions name is
     // up in the path of the passed in <code>f</code> -- parentdir is family,
     // then the directory above is the region name.
-    String mergingRegionName = regionInfo.getEncodedName();
+    String mergingRegionName = primaryRegionInfo.getEncodedName();
     // Write reference with same file id only with the other region name as
     // suffix and into the new region location (under same family).
     Path p = new Path(referenceDir, f.getPath().getName() + "."
@@ -645,7 +648,7 @@ public class HRegionFileSystem {
    * Commit a merged region, moving it from the merges temporary directory to
    * the proper location in the filesystem.
    * @param mergedRegionInfo merged region {@link HRegionInfo}
-   * @throws IOException 
+   * @throws IOException
    */
   void commitMergedRegion(final HRegionInfo mergedRegionInfo) throws IOException {
     Path regionDir = new Path(this.tableDir, mergedRegionInfo.getEncodedName());
@@ -723,7 +726,7 @@ public class HRegionFileSystem {
     // pb version is much shorter -- we write now w/o the toString version -- so checking length
     // only should be sufficient. I don't want to read the file every time to check if it pb
     // serialized.
-    byte[] content = getRegionInfoFileContent(regionInfo);
+    byte[] content = getRegionInfoFileContent(primaryRegionInfo);
     try {
       Path regionInfoFile = new Path(getRegionDir(), REGION_INFO_FILE);
 
@@ -739,7 +742,7 @@ public class HRegionFileSystem {
         throw new IOException("Unable to remove existing " + regionInfoFile);
       }
     } catch (FileNotFoundException e) {
-      LOG.warn(REGION_INFO_FILE + " file not found for region: " + regionInfo.getEncodedName());
+      LOG.warn(REGION_INFO_FILE + " file not found for region: " + primaryRegionInfo.getEncodedName());
     }
 
     // Write HRI to a file in case we need to recover hbase:meta
@@ -751,7 +754,7 @@ public class HRegionFileSystem {
    * @param useTempDir indicate whether or not using the region .tmp dir for a safer file creation.
    */
   private void writeRegionInfoOnFilesystem(boolean useTempDir) throws IOException {
-    byte[] content = getRegionInfoFileContent(regionInfo);
+    byte[] content = getRegionInfoFileContent(primaryRegionInfo);
     writeRegionInfoOnFilesystem(content, useTempDir);
   }
 

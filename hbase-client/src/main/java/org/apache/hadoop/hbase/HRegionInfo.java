@@ -25,6 +25,7 @@ import java.io.DataOutput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.SequenceInputStream;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -115,6 +116,13 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   /** A non-capture group so that this can be embedded. */
   public static final String ENCODED_REGION_NAME_REGEX = "(?:[a-f0-9]+)";
 
+  // to keep appended int's sorted
+  public static final NumberFormat REPLICA_ID_FORMAT = NumberFormat.getInstance();
+  static {
+    REPLICA_ID_FORMAT.setMinimumIntegerDigits(5); // 100K replicas
+    REPLICA_ID_FORMAT.setGroupingUsed(false);
+  }
+
   public static final int REPLICA_ID_PRIMARY = 0;
   /**
    * Does region name contain its encoded name?
@@ -189,7 +197,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   public static final String NO_HASH = null;
   private volatile String encodedName = NO_HASH;
   private byte [] encodedNameAsBytes = null;
-  private int replicaId;
+  private int replicaId = REPLICA_ID_PRIMARY;
 
   // Current TableName
   private TableName tableName = null;
@@ -205,7 +213,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     result ^= Arrays.hashCode(this.endKey);
     result ^= Boolean.valueOf(this.offLine).hashCode();
     result ^= Arrays.hashCode(this.tableName.getName());
-    result ^= replicaId;
+    if (this.replicaId > 0) result ^= this.replicaId;
     this.hashCode = result;
   }
 
@@ -234,7 +242,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   }
 
   public HRegionInfo(final TableName tableName) {
-    this(tableName, null, null, 0);
+    this(tableName, null, null);
   }
 
   /**
@@ -253,22 +261,6 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   /**
    * Construct HRegionInfo with explicit parameters
    *
-   * @param tableName the table name
-   * @param startKey first key in region
-   * @param endKey end of key range
-   * @param replicaId
-   * @throws IllegalArgumentException
-   */
-  public HRegionInfo(final TableName tableName, final byte[] startKey, final byte[] endKey,
-      int replicaId)
-  throws IllegalArgumentException {
-    this(tableName, startKey, endKey, false, System.currentTimeMillis(), replicaId);
-  }
-
-
-  /**
-   * Construct HRegionInfo with explicit parameters
-   *
    * @param tableName the table descriptor
    * @param startKey first key in region
    * @param endKey end of key range
@@ -281,7 +273,6 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   throws IllegalArgumentException {
     this(tableName, startKey, endKey, split, System.currentTimeMillis());
   }
-
 
   /**
    * Construct HRegionInfo with explicit parameters
@@ -323,6 +314,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     this.tableName = tableName;
     this.offLine = false;
     this.regionId = regionid;
+    this.replicaId = replicaId;
 
     this.regionName = createRegionName(this.tableName, startKey, regionId, replicaId, true);
 
@@ -332,7 +324,6 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     this.startKey = startKey == null?
       HConstants.EMPTY_START_ROW: startKey.clone();
     this.tableName = tableName;
-    this.replicaId = replicaId;
     setHashCode();
   }
 
@@ -356,14 +347,6 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     this.replicaId = other.replicaId;
   }
 
-  public int getReplicaId() {
-    return this.replicaId;
-  }
-
-  public boolean isPrimaryReplica() {
-    return this.replicaId == HRegionInfo.REPLICA_ID_PRIMARY;
-  }
-
   /**
    * Returns an HRI object for the primary region replica.
    * @return HRI object for the primary region replica.
@@ -379,8 +362,10 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     return new HRegionInfo(tableName, startKey, endKey, split, regionId, replicaId);
   }
 
-  public void setReplicaId(int replicaId) {
+  public HRegionInfo(HRegionInfo other, int replicaId) {
+    this(other);
     this.replicaId = replicaId;
+    this.setHashCode();
   }
 
   /**
@@ -438,7 +423,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    */
   public static byte [] createRegionName(final TableName tableName,
       final byte [] startKey, final byte [] id, boolean newFormat) {
-    return createRegionName(tableName, startKey, id, 0, newFormat);
+    return createRegionName(tableName, startKey, id, REPLICA_ID_PRIMARY, newFormat);
   }
   /**
    * Make a region name of passed parameters.
@@ -459,7 +444,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     byte[] replicaIdBytes = null;
     if (replicaId > 0) {
       // use string representation for replica id
-      replicaIdBytes = Bytes.toBytes(Integer.toString(replicaId));
+      replicaIdBytes = Bytes.toBytes(REPLICA_ID_FORMAT.format(replicaId));
       len += 1 + replicaIdBytes.length;
     }
 
@@ -587,6 +572,9 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     elements[0] = tableName;
     elements[1] = startKey;
     elements[2] = id;
+
+    // TODO: add parsing for replicaId
+
     return elements;
   }
 
@@ -740,7 +728,6 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     this.offLine = offLine;
   }
 
-
   /**
    * @return True if this is a split parent region.
    */
@@ -750,6 +737,18 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
       LOG.warn("Region is split but NOT offline: " + getRegionNameAsString());
     }
     return true;
+  }
+
+  /**
+   * Returns the region replica id
+   * @return returns region replica id
+   */
+  public int getReplicaId() {
+    return replicaId;
+  }
+
+  public boolean isPrimaryReplica() {
+    return this.replicaId == REPLICA_ID_PRIMARY;
   }
 
   /**
@@ -763,7 +762,8 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
       Bytes.toStringBinary(this.startKey) + "', ENDKEY => '" +
       Bytes.toStringBinary(this.endKey) + "'" +
       (isOffline()? ", OFFLINE => true": "") +
-      (isSplit()? ", SPLIT => true": "") + "}";
+      (isSplit()? ", SPLIT => true": "") +
+      ((replicaId > 0)? ", REPLICA_ID => " + replicaId : "") + "}";
   }
 
   /**
@@ -877,6 +877,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   // Comparable
   //
 
+  @Override
   public int compareTo(HRegionInfo o) {
     if (o == null) {
       return 1;
@@ -917,12 +918,14 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
       return -1;
     }
 
-    if (this.offLine != o.offLine && this.offLine == true)
-      return -1;
-    if (this.getReplicaId() == o.getReplicaId()) return 0;
-    if (this.getReplicaId() > o.getReplicaId()) return 1;
+    int replicaDiff = this.getReplicaId() - o.getReplicaId();
+    if (replicaDiff != 0) return replicaDiff;
 
-    return -1;
+    if (this.offLine == o.offLine)
+      return 0;
+    if (this.offLine == true) return -1;
+
+    return 1;
   }
 
   /**
@@ -978,10 +981,10 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     if (tableName.equals(TableName.META_TABLE_NAME)) {
       return FIRST_META_REGIONINFO;
     }
-    long regionId = proto.getRegionId();
+    long regionId = proto.hasReplicaId() ? proto.getRegionId() : REPLICA_ID_PRIMARY;
+    int replicaId = proto.getReplicaId();
     byte[] startKey = null;
     byte[] endKey = null;
-    int replicaId = proto.getReplicaId();
     if (proto.hasStartKey()) {
       startKey = proto.getStartKey().toByteArray();
     }
@@ -1128,7 +1131,7 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    * @return A ServerName instance or null if necessary fields not found or empty.
    */
   public static ServerName getServerName(final Result r) {
-    return getReplicaName(r, HConstants.SERVER_QUALIFIER, 0);
+    return getServerName(r, REPLICA_ID_PRIMARY);
   }
 
   /**
@@ -1137,18 +1140,9 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    * @param replicaId
    * @return
    */
-  public static ServerName getReplicaName(final Result r, int replicaId) {
-    byte[] replicaIdQualifier = MetaReader.getServerColumn(replicaId);
-    return getReplicaName(r, replicaIdQualifier, replicaId);
-  }
-
-  /**
-   * Returns a {@link ServerName} from catalog table under a specific qualifier
-   * @param r
-   * @return
-   */
-  static ServerName getReplicaName(final Result r, byte[] qualifier, int replicaId) {
-    byte[] value = r.getValue(HConstants.CATALOG_FAMILY, qualifier);
+  public static ServerName getServerName(final Result r, int replicaId) {
+    byte[] serverColumn = MetaReader.getServerColumn(replicaId);
+    byte[] value = r.getValue(HConstants.CATALOG_FAMILY, serverColumn);
     if (value == null || value.length == 0) return null;
     String hostAndPort = Bytes.toString(value);
     byte[] startcodeValue = MetaReader.getStartCodeColumn(replicaId);

@@ -101,7 +101,33 @@ public class TestHRegionInfo {
                  + id + "." + md5HashInHex + ".",
                  nameStr);
   }
-  
+
+  @Test
+  public void testRegionNameForRegionReplicas() throws Exception {
+    String tableName = "tablename";
+    final TableName tn = TableName.valueOf(tableName);
+    String startKey = "startkey";
+    final byte[] sk = Bytes.toBytes(startKey);
+    String id = "id";
+
+    // assert with only the region name without encoding
+
+    // primary, replicaId = 0
+    byte [] name = HRegionInfo.createRegionName(tn, sk, Bytes.toBytes(id), 0, false);
+    String nameStr = Bytes.toString(name);
+    assertEquals(tableName + "," + startKey + "," + id, nameStr);
+
+    // replicaId = 1
+    name = HRegionInfo.createRegionName(tn, sk, Bytes.toBytes(id), 1, false);
+    nameStr = Bytes.toString(name);
+    assertEquals(tableName + "," + startKey + "," + id + "," + Integer.toString(1), nameStr);
+
+    // replicaId = int max
+    name = HRegionInfo.createRegionName(tn, sk, Bytes.toBytes(id), Integer.MAX_VALUE, false);
+    nameStr = Bytes.toString(name);
+    assertEquals(tableName + "," + startKey + "," + id + "," + Integer.toString(Integer.MAX_VALUE), nameStr);
+  }
+
   @Test
   public void testContainsRange() {
     HTableDescriptor tableDesc = new HTableDescriptor(TableName.valueOf("testtable"));
@@ -121,7 +147,7 @@ public class TestHRegionInfo {
     assertFalse(hri.containsRange(Bytes.toBytes("g"), Bytes.toBytes("g")));
     // Single row range entirely outside
     assertFalse(hri.containsRange(Bytes.toBytes("z"), Bytes.toBytes("z")));
-    
+
     // Degenerate range
     try {
       hri.containsRange(Bytes.toBytes("z"), Bytes.toBytes("a"));
@@ -149,13 +175,13 @@ public class TestHRegionInfo {
   public void testComparator() {
     TableName tablename = TableName.valueOf("comparatorTablename");
     byte[] empty = new byte[0];
-    HRegionInfo older = new HRegionInfo(tablename, empty, empty, false, 0L); 
-    HRegionInfo newer = new HRegionInfo(tablename, empty, empty, false, 1L); 
+    HRegionInfo older = new HRegionInfo(tablename, empty, empty, false, 0L);
+    HRegionInfo newer = new HRegionInfo(tablename, empty, empty, false, 1L);
     assertTrue(older.compareTo(newer) < 0);
     assertTrue(newer.compareTo(older) > 0);
     assertTrue(older.compareTo(older) == 0);
     assertTrue(newer.compareTo(newer) == 0);
   }
-  
+
 }
 
