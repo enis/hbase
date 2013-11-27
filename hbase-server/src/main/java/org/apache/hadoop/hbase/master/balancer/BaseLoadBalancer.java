@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -41,7 +42,9 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.master.AssignmentManager;
 import org.apache.hadoop.hbase.master.LoadBalancer;
 import org.apache.hadoop.hbase.master.MasterServices;
+import org.apache.hadoop.hbase.master.RackManager;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Sets;
@@ -79,6 +82,8 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
     Map<String, Integer> serversToIndex;
     Map<String, Integer> tablesToIndex;
+    Map<Integer, Set<HRegionInfo>> serverToReplicaMap;
+    Map<String, Set<HRegionInfo>> rackToReplicaMap;
 
     int numRegions;
     int numServers;
@@ -86,9 +91,11 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
     int numMovedRegions = 0; //num moved regions from the initial configuration
     int numMovedMetaRegions = 0;       //num of moved regions that are META
+    RackManager rackManager;
+    int uniqueRacks;
 
     protected Cluster(Map<ServerName, List<HRegionInfo>> clusterState,  Map<String, Deque<RegionLoad>> loads,
-        RegionLocationFinder regionFinder) {
+        RegionLocationFinder regionFinder, RackManager rackManager) {
 
       serversToIndex = new HashMap<String, Integer>();
       tablesToIndex = new HashMap<String, Integer>();
@@ -99,6 +106,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
 
       numRegions = 0;
+      this.rackManager = rackManager;
 
       int serverIndex = 0;
 
@@ -126,6 +134,8 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       regionLoads = new Deque[numRegions];
       regionLocations = new int[numRegions][];
       serverIndicesSortedByRegionCount = new Integer[numServers];
+      serverToReplicaMap = new HashMap<Integer, Set<HRegionInfo>>();
+      rackToReplicaMap = new HashMap<String, Set<HRegionInfo>>();
 
       int tableIndex = 0, regionIndex = 0, regionPerServerIndex = 0;
 
@@ -142,8 +152,16 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         regionsPerServer[serverIndex] = new int[entry.getValue().size()];
         serverIndicesSortedByRegionCount[serverIndex] = serverIndex;
       }
-
+      Set<String>racks = new HashSet<String>();
       for (Entry<ServerName, List<HRegionInfo>> entry : clusterState.entrySet()) {
+        String rack = null;
+        if (rackManager != null) {
+          rack = rackManager.getRack(entry.getKey());
+          if (!racks.contains(rack)) {
+            uniqueRacks++;
+            racks.add(rack);
+          }
+        }
         serverIndex = serversToIndex.get(entry.getKey().getHostAndPort());
         regionPerServerIndex = 0;
 
@@ -184,6 +202,24 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
             }
           }
 
+          Set<HRegionInfo> replicaMap = serverToReplicaMap.get(serverIndex);
+          if (replicaMap == null) {
+            replicaMap = new HashSet<HRegionInfo>();
+            serverToReplicaMap.put(serverIndex, replicaMap);
+          }
+          //add the primary replica for easy comparison later
+          HRegionInfo h = region.getPrimaryRegionInfo();
+          replicaMap.add(h);
+          if (rack != null) {
+            // maintain the rack information as well
+            Set<HRegionInfo> perRackReplicaMap = rackToReplicaMap.get(rack);
+            if (perRackReplicaMap == null) {
+              perRackReplicaMap = new HashSet<HRegionInfo>();
+              rackToReplicaMap.put(rack, perRackReplicaMap);
+            }
+            perRackReplicaMap.add(h);
+          }
+
           regionIndex++;
         }
       }
@@ -218,15 +254,77 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         regionsPerServer[rServer] = replaceRegion(regionsPerServer[rServer], rRegion, lRegion);
         regionMoved(lRegion, lServer, rServer);
         regionsPerServer[lServer] = replaceRegion(regionsPerServer[lServer], lRegion, rRegion);
+        updateReplicaMap(rServer, lServer, rRegion);
+        updateReplicaMap(lServer, rServer, lRegion);
       } else if (rRegion >= 0) { //move rRegion
         regionMoved(rRegion, rServer, lServer);
         regionsPerServer[rServer] = removeRegion(regionsPerServer[rServer], rRegion);
         regionsPerServer[lServer] = addRegion(regionsPerServer[lServer], rRegion);
+        updateReplicaMap(rServer, lServer, rRegion);
       } else if (lRegion >= 0) { //move lRegion
         regionMoved(lRegion, lServer, rServer);
         regionsPerServer[lServer] = removeRegion(regionsPerServer[lServer], lRegion);
         regionsPerServer[rServer] = addRegion(regionsPerServer[rServer], lRegion);
+        updateReplicaMap(rServer, lServer, lRegion);
       }
+    }
+
+    // remove region from lServer and put it in rServer. Also update the racks information
+    @VisibleForTesting
+    void updateReplicaMap(int lServer, int rServer, int region) {
+      Set<HRegionInfo> regionSet = serverToReplicaMap.get(lServer);
+      if (regionSet != null) {
+        regionSet.remove(regions[region]);
+      }
+      regionSet = serverToReplicaMap.get(rServer);
+      if (regionSet == null) {
+        regionSet = new HashSet<HRegionInfo>();
+        serverToReplicaMap.put(rServer, regionSet);
+      }
+      regionSet.add(regions[region]);
+      // update the racks info
+      if (rackManager != null) {
+        String srcRack = rackManager.getRack(servers[lServer]);
+        String destRack = rackManager.getRack(servers[rServer]);
+        regionSet = rackToReplicaMap.get(srcRack);
+        if (regionSet != null) {
+          regionSet.remove(regions[region]);
+        }
+        regionSet = rackToReplicaMap.get(destRack);
+        if (regionSet == null) {
+          regionSet = new HashSet<HRegionInfo>();
+          rackToReplicaMap.put(destRack, regionSet);
+        }
+        regionSet.add(regions[region]);
+      }
+    }
+    
+
+    /**
+     * Return true if the move of region from lServer to rServer would lower the availability
+     * of the region in question
+     * @param lServer
+     * @param rServer
+     * @param region
+     * @return true or false
+     */
+    public boolean wouldLowerAvailability(int lServer, int rServer, int region) {
+      // availability would be lowered if the balancer chooses the node to move to as the node
+      // where the replica is
+      Set<HRegionInfo> set = serverToReplicaMap.get(rServer);
+      HRegionInfo hri = regions[region].getPrimaryRegionInfo();
+      if (set.contains(hri)) return true;
+      // also availability would be lowered if the balancer chooses the node to move to a
+      // node in the same rack (if there were multiple racks to choose from)
+      if (uniqueRacks > 1) {
+        String destRack = rackManager.getRack(servers[rServer]);
+        if (rackToReplicaMap.get(destRack).contains(hri)) {
+          // the destination rack contains a replica (primary or secondary)
+          return true;
+        }
+        //TODO: handle the case of more than one replica
+      }
+      return false;
     }
 
     /** Region moved out of the server */

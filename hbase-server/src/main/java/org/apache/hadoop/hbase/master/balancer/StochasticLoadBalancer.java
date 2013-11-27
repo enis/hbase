@@ -38,6 +38,7 @@ import org.apache.hadoop.hbase.RegionLoad;
 import org.apache.hadoop.hbase.ServerLoad;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.master.MasterServices;
+import org.apache.hadoop.hbase.master.RackManager;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -198,7 +199,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     long startTime = EnvironmentEdgeManager.currentTimeMillis();
 
     // Keep track of servers to iterate through them.
-    Cluster cluster = new Cluster(clusterState, loads, regionFinder);
+    Cluster cluster = new Cluster(clusterState, loads, regionFinder, new RackManager(getConf()));
     double currentCost = computeCost(cluster, Double.MAX_VALUE);
 
     double initCost = currentCost;
@@ -225,6 +226,16 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
       // We randomly picked to do nothing.
       if (leftRegion < 0 && rightRegion < 0) {
+        continue;
+      }
+
+      // Would we lower the availability if we did this
+      if (leftRegion >= 0 &&
+          cluster.wouldLowerAvailability(leftServer, rightServer, leftRegion)) {
+        continue;
+      }
+      if (rightRegion >= 0 &&
+          cluster.wouldLowerAvailability(rightServer, leftServer, rightRegion)) {
         continue;
       }
 

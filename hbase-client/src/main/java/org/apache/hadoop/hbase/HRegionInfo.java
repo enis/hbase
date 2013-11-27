@@ -879,6 +879,14 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
 
   @Override
   public int compareTo(HRegionInfo o) {
+    int i = compareToWithoutReplica(o);
+    if (i != 0) return i;
+    if (this.getReplicaId() == o.getReplicaId()) return 0;
+    if (this.getReplicaId() > o.getReplicaId()) return 1;
+    return -1;
+  }
+
+  public int compareToWithoutReplica(HRegionInfo o) {
     if (o == null) {
       return 1;
     }
