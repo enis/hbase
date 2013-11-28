@@ -231,16 +231,16 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     Cluster cluster = new Cluster(clusterState, null, null, rackManager);
     // check whether a move of region1 from servers[0] to servers[1] would lower
     // the availability of region1
-    assertTrue(cluster.wouldLowerAvailability(0, 1, 0));
+    assertTrue(cluster.wouldLowerAvailability(1, 0));
     // check whether a move of region1 from servers[0] to servers[2] would lower
     // the availability of region1
-    assertTrue(!cluster.wouldLowerAvailability(0, 2, 0));
+    assertTrue(!cluster.wouldLowerAvailability(2, 0));
     // check whether a move of replica_of_region1 from servers[0] to servers[2] would lower
     // the availability of replica_of_region1
-    assertTrue(!cluster.wouldLowerAvailability(0, 2, 1));
+    assertTrue(!cluster.wouldLowerAvailability(2, 1));
     // check whether a move of region2 from servers[0] to servers[1] would lower
     // the availability of region2
-    assertTrue(!cluster.wouldLowerAvailability(0, 1, 2));
+    assertTrue(!cluster.wouldLowerAvailability(1, 2));
 
     // now lets have servers[1] host replica_of_region2
     list1.add(hri3.getRegionInfoForReplica(1));
@@ -248,7 +248,7 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     cluster = new Cluster(clusterState, null, null, rackManager);
     // now check whether a move of a replica from servers[0] to servers[1] would lower
     // the availability of region2
-    assertTrue(cluster.wouldLowerAvailability(0, 1, 2));
+    assertTrue(cluster.wouldLowerAvailability(1, 2));
 
     // start over again
     clusterState.clear();
@@ -259,13 +259,13 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     cluster = new Cluster(clusterState, null, null, rackManager);
     // check whether a move of region1 from servers[0],rack1 to servers[6],rack2 would
     // lower the availability
-    assertTrue(cluster.wouldLowerAvailability(0, 2, 0));
+    assertTrue(cluster.wouldLowerAvailability(2, 0));
 
     // now create a cluster without the rack manager
     cluster = new Cluster(clusterState, null, null, null);
     // now repeat check whether a move of region1 from servers[0] to servers[6] would
     // lower the availability
-    assertTrue(!cluster.wouldLowerAvailability(0, 2, 0));
+    assertTrue(!cluster.wouldLowerAvailability(2, 0));
   }
 
   @Test
@@ -297,13 +297,13 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     // map (linkedhashmap is important).
     Cluster cluster = new Cluster(clusterState, null, null, rackManager);
     // check whether moving region1 from servers[1] to servers[2] would lower availability
-    assertTrue(!cluster.wouldLowerAvailability(1, 2, 0));
+    assertTrue(!cluster.wouldLowerAvailability(2, 0));
 
     // now move region1 from servers[0] to servers[2]
     cluster.updateReplicaMap(0, 2, 0);
     // now repeat check whether moving region1 from servers[1] to servers[2]
     // would lower availability
-    assertTrue(cluster.wouldLowerAvailability(1, 2, 0));
+    assertTrue(cluster.wouldLowerAvailability(2, 0));
 
     // start over again
     clusterState.clear();
@@ -317,12 +317,12 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     cluster = new Cluster(clusterState, null, null, rackManager);
     // check whether a move of replica_of_region2 from servers[12],rack3 to servers[0],rack1 would
     // lower the availability
-    assertTrue(!cluster.wouldLowerAvailability(3, 0, 3));
+    assertTrue(!cluster.wouldLowerAvailability(0, 3));
     // now move region2 from servers[6],rack2 to servers[0],rack1
     cluster.updateReplicaMap(2, 0, 2);
     // now repeat check if replica_of_region2 from servers[12],rack3 to servers[0],rack1 would
     // lower the availability
-    assertTrue(cluster.wouldLowerAvailability(3, 0, 3));
+    assertTrue(cluster.wouldLowerAvailability(0, 3));
   }
 
   private List<ServerName> getListOfServerNames(final List<ServerAndLoad> sals) {

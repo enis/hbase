@@ -43,6 +43,7 @@ import org.apache.hadoop.hbase.master.AssignmentManager;
 import org.apache.hadoop.hbase.master.LoadBalancer;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.RackManager;
+import org.apache.hadoop.hbase.util.Pair;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -301,23 +302,23 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     
 
     /**
-     * Return true if the move of region from lServer to rServer would lower the availability
+     * Return true if the placement of region on server would lower the availability
      * of the region in question
-     * @param lServer
-     * @param rServer
+     * @param server
      * @param region
      * @return true or false
      */
-    public boolean wouldLowerAvailability(int lServer, int rServer, int region) {
+    boolean wouldLowerAvailability(int server, int region) {
       // availability would be lowered if the balancer chooses the node to move to as the node
       // where the replica is
-      Set<HRegionInfo> set = serverToReplicaMap.get(rServer);
+      Set<HRegionInfo> set = serverToReplicaMap.get(server);
       HRegionInfo hri = regions[region].getPrimaryRegionInfo();
       if (set.contains(hri)) return true;
+      //TODO: add same host checks (if more than 1 host,then don't place replicas on the same host)
       // also availability would be lowered if the balancer chooses the node to move to a
       // node in the same rack (if there were multiple racks to choose from)
       if (uniqueRacks > 1) {
-        String destRack = rackManager.getRack(servers[rServer]);
+        String destRack = rackManager.getRack(servers[server]);
         if (rackToReplicaMap.get(destRack).contains(hri)) {
           // the destination rack contains a replica (primary or secondary)
           return true;
@@ -442,6 +443,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
   // slop for regions
   protected float slop;
   private Configuration config;
+  private RackManager rackManager;
   private static final Random RANDOM = new Random(System.currentTimeMillis());
   private static final Log LOG = LogFactory.getLog(BaseLoadBalancer.class);
 
@@ -527,6 +529,24 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       return null;
     }
     Map<ServerName, List<HRegionInfo>> assignments = new TreeMap<ServerName, List<HRegionInfo>>();
+    // Get the snapshot of the current assignments for the regions in question, and then create
+    // a cluster out of it. Note that we might have replicas already assigned to some servers
+    // earlier. So we want to get the snapshot to see those assignments.
+    Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>> currentAssignments;
+    if (this.services != null) {
+      currentAssignments = this.services.getAssignmentManager().getSnapShotOfAssignment(regions);
+    } else { //create empty datastructures .. lot of code.
+      currentAssignments = new Pair<Map<ServerName, List<HRegionInfo>>,
+          Map<String, List<HRegionInfo>>>();
+      Map<ServerName, List<HRegionInfo>> a = new HashMap<ServerName, List<HRegionInfo>>(0);
+      Map<String, List<HRegionInfo>> b = new HashMap<String, List<HRegionInfo>>(0);
+      currentAssignments.setFirst(a);
+      currentAssignments.setSecond(b);
+    }
+    //for this round of roundRobinAssignment, how many racks are we talking about (TODO: need to access
+    //the rackManager via the master or something)
+    int uniqueRacks = rackManager == null ? 1 : rackManager.getRack(servers).size();
+    
     int numRegions = regions.size();
     int numServers = servers.size();
     int max = (int) Math.ceil((float) numRegions / numServers);
@@ -535,16 +555,93 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       serverIdx = RANDOM.nextInt(numServers);
     }
     int regionIdx = 0;
+    List<HRegionInfo> unassignedRegions = new ArrayList<HRegionInfo>();
     for (int j = 0; j < numServers; j++) {
       ServerName server = servers.get((j + serverIdx) % numServers);
       List<HRegionInfo> serverRegions = new ArrayList<HRegionInfo>(max);
       for (int i = regionIdx; i < numRegions; i += numServers) {
-        serverRegions.add(regions.get(i % numRegions));
+        HRegionInfo region = regions.get(i % numRegions);
+        if (wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
+            uniqueRacks, server, region)) {
+          unassignedRegions.add(region);
+        } else {
+          serverRegions.add(region);
+        }
       }
       assignments.put(server, serverRegions);
+      // also update the assignments for checking availability
+      updateLocalityCheckerMaps(serverRegions, server, currentAssignments.getFirst(),
+          currentAssignments.getSecond());
       regionIdx++;
     }
+    // assign the unassigned regions by going through the list and doing straight
+    // round robin
+    List<HRegionInfo> underReplicatedRegions = new ArrayList<HRegionInfo>();
+    underReplicatedRegions.addAll(unassignedRegions);
+    for (HRegionInfo hri : unassignedRegions) {
+      for (int j = 0; j < numServers; j++) {
+        if (wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
+            uniqueRacks, servers.get(j), hri)) {
+          List<HRegionInfo> hris = assignments.get(servers.get(j));
+          if (hris == null) {
+            hris = new ArrayList<HRegionInfo>();
+          }
+          hris.add(hri);
+          assignments.put(servers.get(j), hris);
+          // also update the assignments for checking availability
+          List<HRegionInfo> h = new ArrayList<HRegionInfo>();
+          h.add(hri);
+          updateLocalityCheckerMaps(h, servers.get(j), currentAssignments.getFirst(),
+              currentAssignments.getSecond());
+          underReplicatedRegions.remove(hri);
+          break;
+        }
+      }
+    }
+    //TODO: whatever is remaining now is under replicated. Need to keep trying to assign them
     return assignments;
+  }
+
+  boolean wouldLowerAvailability(Map<ServerName, List<HRegionInfo>> serverToRegionAssignments,
+      Map<String, List<HRegionInfo>> rackToRegionAssignments,
+      int uniqueRacks,
+      ServerName server, HRegionInfo region) {
+    HRegionInfo hri = region.getPrimaryRegionInfo();
+    List<HRegionInfo> regions = serverToRegionAssignments.get(server);
+    if (regions == null) return false;
+    if (regions.contains(hri)) return true;
+    //TODO: add same host checks (if more than 1 host,then don't place replicas on the same host)
+    // also availability would be lowered if the balancer chooses the node to move to a
+    // node in the same rack (if there were multiple racks to choose from)
+    if (uniqueRacks > 1) {
+      String destRack = rackManager.getRack(server);
+      regions = rackToRegionAssignments.get(destRack);
+      if (regions == null) return false;
+      if (rackToRegionAssignments.get(destRack).contains(hri)) {
+        // the destination rack contains a replica (primary or secondary)
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private void updateLocalityCheckerMaps(List<HRegionInfo>serverRegions, ServerName server,
+      Map<ServerName, List<HRegionInfo>> serverToRegions,
+      Map<String, List<HRegionInfo>> rackToRegions) {
+    List<HRegionInfo> hris = serverToRegions.get(server);
+    if (hris == null) {
+      hris = new ArrayList<HRegionInfo>();
+      serverToRegions.put(server, hris);
+    }
+    hris.addAll(serverRegions);
+    if (rackManager != null) {
+      hris = rackToRegions.get(rackManager.getRack(server));
+      if (hris == null) {
+        hris = new ArrayList<HRegionInfo>();
+        rackToRegions.put(rackManager.getRack(server), hris);
+      }
+      hris.addAll(serverRegions);
+    }
   }
 
   /**
@@ -678,6 +775,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
   @Override
   public void initialize() throws HBaseIOException{
+    rackManager = new RackManager(getConf());
   }
 
   @Override

@@ -3513,4 +3513,9 @@ public class AssignmentManager extends ZooKeeperListener {
     // remove the region plan as well just in case.
     clearRegionPlan(regionInfo);
   }
+
+  public Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>>
+  getSnapShotOfAssignment(List<HRegionInfo> infos) {
+    return getRegionStates().getRegionAssignments(infos);
+  }
 }

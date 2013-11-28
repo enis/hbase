@@ -111,6 +111,7 @@ public class RegionStates {
 
   private final ServerManager serverManager;
   private final Server server;
+  private final RackManager rackManager;
 
   // The maximum time to keep a log split info in region states map
   static final String LOG_SPLIT_TIME = "hbase.master.maximum.logsplit.keeptime";
@@ -126,6 +127,7 @@ public class RegionStates {
     deadServers = new HashMap<String, Long>();
     this.serverManager = serverManager;
     this.server = master;
+    this.rackManager = new RackManager(master.getConfiguration());
   }
 
   /**
@@ -134,6 +136,42 @@ public class RegionStates {
   @SuppressWarnings("unchecked")
   public synchronized Map<HRegionInfo, ServerName> getRegionAssignments() {
     return (Map<HRegionInfo, ServerName>)regionAssignments.clone();
+  }
+
+  /**
+   * Return the replicas for the region
+   * @param region
+   * @return
+   */
+  public synchronized Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>>
+  getRegionAssignments(List<HRegionInfo> regions) {
+    Map<ServerName, List<HRegionInfo>> replicaAssignments =
+        new TreeMap<ServerName, List<HRegionInfo>>();
+    Map<String, List<HRegionInfo>> rackAssignments =
+        new TreeMap<String, List<HRegionInfo>>();
+    List <ServerName> servers = new ArrayList<ServerName>();
+    //This is a hack to get the assignment for replicas. The assignment should be constantly
+    //maintained to avoid the iteration. TODO: Fix it. Optimize it.
+    for (Map.Entry<HRegionInfo, ServerName> regEntry : regionAssignments.entrySet()) {
+      for (HRegionInfo region : regions) {
+        if (regEntry.getKey().getPrimaryRegionInfo().equals(region.getPrimaryRegionInfo())) {
+          List<HRegionInfo> regionsInServer = replicaAssignments.get(regEntry.getValue());
+          if (regionsInServer == null) {
+            regionsInServer = new ArrayList<HRegionInfo>();
+            replicaAssignments.put(regEntry.getValue(), regionsInServer);
+            servers.add(regEntry.getValue());
+          }
+          if (!regionsInServer.contains(region)) regionsInServer.add(region);
+        }
+      }
+    }
+    List<String> racks = rackManager.getRack(servers);
+    for (int i = 0; i < servers.size(); i++) {
+      List<HRegionInfo> r = replicaAssignments.get(servers.get(i));
+      rackAssignments.put(racks.get(i), r);
+    }
+    return new Pair<Map<ServerName, List<HRegionInfo>>,
+        Map<String, List<HRegionInfo>>>(replicaAssignments, rackAssignments);
   }
 
   public synchronized ServerName getRegionServerOfRegion(HRegionInfo hri) {
