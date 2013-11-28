@@ -1059,4 +1059,12 @@ possible configurations would overwhelm and obscure the important.
       as the SimpleLoadBalancer).
     </description>
   </property>
+  <property>
+    <name>hbase.regionserver.storefile.refresh.period</name>
+    <value>0</value>
+    <description>
+      The period (in milliseconds) for refreshing the store files for the secondary regions. 0 means this
+      feature is disabled.
+    </description>
+  </property>
 </configuration>

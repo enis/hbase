@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
+import java.io.IOException;
+
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
@@ -32,12 +34,15 @@ import org.apache.hadoop.hbase.protobuf.RequestConverter;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos;
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.zookeeper.ZKAssign;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import com.google.protobuf.ServiceException;
 
 /**
  * Tests for region replicas. Sad that we cannot isolate these without bringing up a whole
@@ -174,27 +179,111 @@ public class TestRegionReplicas {
 
   @Test(timeout = 60000)
   public void testRegionReplicaGets() throws Exception {
-    //load some data to primary
-    HTU.loadNumericRows(table, f, 0, 1000);
-    // assert that we can read back from primary
-    Assert.assertEquals(1000, HTU.countRows(table));
-    // flush so that region replica can read
-    HTU.getHBaseAdmin().flush(table.getTableName());
-
-    openRegion(hriSecondary);
     try {
-      // first try directly against region
-      byte[] row = Bytes.toBytes(String.valueOf(42));
-      Get get = new Get(row);
-      HRegion region = getRS().getFromOnlineRegions(hriSecondary.getEncodedName());
-      Result result = region.get(get);
-      Assert.assertArrayEquals(row, result.getValue(f, null));
+      //load some data to primary
+      HTU.loadNumericRows(table, f, 0, 1000);
+      // assert that we can read back from primary
+      Assert.assertEquals(1000, HTU.countRows(table));
+      // flush so that region replica can read
+      HTU.getHBaseAdmin().flush(table.getTableName());
 
-      // build a mock rpc
-      ClientProtos.GetRequest getReq = RequestConverter.buildGetRequest(hriSecondary.getRegionName(), get);
-      ClientProtos.GetResponse getResp =  getRS().get(null, getReq);
-      result = ProtobufUtil.toResult(getResp.getResult());
+      openRegion(hriSecondary);
+
+      // first try directly against region
+      HRegion region = getRS().getFromOnlineRegions(hriSecondary.getEncodedName());
+      assertGet(region, 42, true);
+
+      assertGetRpc(hriSecondary, 42, true);
+
+    } finally {
+      HTU.deleteNumericRows(table, HConstants.CATALOG_FAMILY, 0, 1000);
+      closeRegion(hriSecondary);
+    }
+  }
+
+  private void assertGet(HRegion region, int value, boolean expect) throws IOException {
+    byte[] row = Bytes.toBytes(String.valueOf(value));
+    Get get = new Get(row);
+    Result result = region.get(get);
+    if (expect) {
       Assert.assertArrayEquals(row, result.getValue(f, null));
+    } else {
+      result.isEmpty();
+    }
+  }
+
+  // build a mock rpc
+  private void assertGetRpc(HRegionInfo info, int value, boolean expect) throws IOException, ServiceException {
+    byte[] row = Bytes.toBytes(String.valueOf(value));
+    Get get = new Get(row);
+    ClientProtos.GetRequest getReq = RequestConverter.buildGetRequest(info.getRegionName(), get);
+    ClientProtos.GetResponse getResp =  getRS().get(null, getReq);
+    Result result = ProtobufUtil.toResult(getResp.getResult());
+    if (expect) {
+      Assert.assertArrayEquals(row, result.getValue(f, null));
+    } else {
+      result.isEmpty();
+    }
+  }
+
+  private void restartRegionServer() throws Exception {
+    afterClass();
+    before();
+  }
+
+  @Test(timeout = 300000)
+  public void testRefreshStoreFiles() throws Exception {
+    // enable store file refreshing
+    final int refreshPeriod = 2000; // 2 sec
+    HTU.getConfiguration().setInt("hbase.hstore.compactionThreshold", 100);
+    HTU.getConfiguration().setInt(HConstants.REGIONSERVER_STOREFILE_REFRESH_PERIOD, refreshPeriod);
+    // restart the region server so that it starts the refresher chore
+    restartRegionServer();
+
+    try {
+      openRegion(hriSecondary);
+
+      //load some data to primary
+      HTU.loadNumericRows(table, f, 0, 1000);
+      // assert that we can read back from primary
+      Assert.assertEquals(1000, HTU.countRows(table));
+      // flush so that region replica can read
+      HTU.getHBaseAdmin().flush(table.getTableName());
+
+      // ensure that chore is run
+      Threads.sleep(4 * refreshPeriod);
+
+      assertGetRpc(hriSecondary, 42, true);
+      assertGetRpc(hriSecondary, 1042, false);
+
+      //load some data to primary
+      HTU.loadNumericRows(table, f, 1000, 1100);
+      HTU.getHBaseAdmin().flush(table.getTableName());
+
+      HTU.loadNumericRows(table, f, 2000, 2100);
+      HTU.getHBaseAdmin().flush(table.getTableName());
+
+      // ensure that chore is run
+      Threads.sleep(4 * refreshPeriod);
+
+      assertGetRpc(hriSecondary, 42, true);
+      assertGetRpc(hriSecondary, 1042, true);
+      assertGetRpc(hriSecondary, 2042, true);
+
+      // ensure that we are see the 3 store files
+      HRegion secondaryRegion = getRS().getFromOnlineRegions(hriSecondary.getEncodedName());
+      Assert.assertEquals(3, secondaryRegion.getStore(f).getStorefilesCount());
+
+      // force compaction
+      HTU.compact(table.getName(), true);
+
+      Threads.sleep(4 * refreshPeriod);
+      assertGetRpc(hriSecondary, 42, true);
+      assertGetRpc(hriSecondary, 1042, true);
+      assertGetRpc(hriSecondary, 2042, true);
+
+      // ensure that we see the compacted file only
+      Assert.assertEquals(1, secondaryRegion.getStore(f).getStorefilesCount());
 
     } finally {
       HTU.deleteNumericRows(table, HConstants.CATALOG_FAMILY, 0, 1000);

@@ -483,6 +483,9 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
   // Table level lock manager for locking for region operations
   private TableLockManager tableLockManager;
 
+  // chore for refreshing store files for secondary regions
+  private StorefileRefresherChore storefileRefresher;
+
   /**
    * Starts a HRegionServer at the default location
    *
@@ -769,6 +772,12 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
         this.isa.getAddress(), 0));
     this.pauseMonitor = new JvmPauseMonitor(conf);
     pauseMonitor.start();
+
+    int storefileRefreshPeriod = conf.getInt(HConstants.REGIONSERVER_STOREFILE_REFRESH_PERIOD
+      , HConstants.DEFAULT_REGIONSERVER_STOREFILE_REFRESH_PERIOD);
+    if (storefileRefreshPeriod > 0) {
+      this.storefileRefresher = new StorefileRefresherChore(storefileRefreshPeriod, this, this);
+    }
   }
 
   /**
@@ -881,6 +890,12 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
       this.compactionChecker.interrupt();
     if (this.healthCheckChore != null) {
       this.healthCheckChore.interrupt();
+    }
+    if (this.healthCheckChore != null) {
+      this.healthCheckChore.interrupt();
+    }
+    if (this.storefileRefresher != null) {
+      this.storefileRefresher.interrupt();
     }
 
     // Stop the snapshot handler, forcefully killing all running tasks
@@ -1534,6 +1549,10 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
         .setDaemonThreadRunning(this.healthCheckChore.getThread(), n + ".healthChecker",
             uncaughtExceptionHandler);
     }
+    if (this.storefileRefresher != null) {
+      Threads.setDaemonThreadRunning(this.storefileRefresher.getThread(), n + ".storefileRefresher",
+            uncaughtExceptionHandler);
+    }
 
     // Leases is not a Thread. Internally it runs a daemon thread. If it gets
     // an unhandled exception, it will just exit.
@@ -1811,6 +1830,9 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
       this.replicationSourceHandler.stopReplicationService();
     } else if (this.replicationSinkHandler != null) {
       this.replicationSinkHandler.stopReplicationService();
+    }
+    if (this.storefileRefresher != null) {
+      Threads.shutdown(this.storefileRefresher.getThread());
     }
   }
 

@@ -893,6 +893,13 @@ public final class HConstants {
   public static final String REGIONSERVER_METRICS_PERIOD = "hbase.regionserver.metrics.period";
   public static final long DEFAULT_REGIONSERVER_METRICS_PERIOD = 5000;
 
+  /**
+   * The period (in milliseconds) for refreshing the store files for the secondary regions.
+   */
+  public static final String REGIONSERVER_STOREFILE_REFRESH_PERIOD
+    = "hbase.regionserver.storefile.refresh.period";
+  public static final int DEFAULT_REGIONSERVER_STOREFILE_REFRESH_PERIOD = 0; //disabled by default
+
   private HConstants() {
     // Can't be instantiated with this ctor.
   }
