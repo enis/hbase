@@ -192,6 +192,10 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
    */
   @Override
   public List<RegionPlan> balanceCluster(Map<ServerName, List<HRegionInfo>> clusterState) {
+    //TODO: someone needs to do checks periodically that the constraints for replica
+    //placement are met (primary/secondary not on the same machine, on the same rack etc.
+    //TODO: make sure the clusterState that is given to this method contains the state
+    //of all the regions in the table(s) (that's true today)
     if (!needsBalance(new ClusterLoadState(clusterState))) {
       return null;
     }
