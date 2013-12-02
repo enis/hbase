@@ -234,8 +234,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       }
 
       // Would we lower the availability if we did this
-      // TODO: look at a picker for this (AvailabilityPicker is the mandatory
-      // picker that's applied after every picker.pick or something like that)
+      // TODO: does it make sense to look at a picker for the availability
       if (leftRegion >= 0 &&
           cluster.wouldLowerAvailability(rightServer, leftRegion)) {
         continue;
