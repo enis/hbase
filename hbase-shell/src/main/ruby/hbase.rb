@@ -56,6 +56,7 @@ module HBaseConstants
   SPLITS_FILE = 'SPLITS_FILE'
   SPLITALGO = 'SPLITALGO'
   NUMREGIONS = 'NUMREGIONS'
+  REPLICA = 'REPLICA'
   CONFIGURATION = org.apache.hadoop.hbase.HConstants::CONFIGURATION
 
   # Load constants from hbase java API

@@ -220,7 +220,7 @@ module Hbase
           next
         end
         if arg.has_key?(REPLICA)
-          replica = arg.delete(REPLICA)
+          replica = JInteger.valueOf(arg.delete(REPLICA))
           htd.setNumRegionReplicas(replica)
         end 
         

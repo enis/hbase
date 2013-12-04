@@ -1791,10 +1791,10 @@ MasterServices, Server {
     }
     long regionId = System.currentTimeMillis();
     if (splitKeys == null || splitKeys.length == 0) {
+      hRegionInfos = new HRegionInfo[numRegionReplicas];
       for (int i = 0; i < numRegionReplicas; i++) {
-        hRegionInfos = new HRegionInfo[]{
-            new HRegionInfo(hTableDescriptor.getTableName(), null, null,
-                false, regionId, (short)i)};
+        hRegionInfos[i] = new HRegionInfo(hTableDescriptor.getTableName(), null, null,
+                false, regionId, (short)i);
       }
     } else {
       int numRegions = splitKeys.length + 1;
