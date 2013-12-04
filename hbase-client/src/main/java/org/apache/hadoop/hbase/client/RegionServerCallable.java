@@ -45,8 +45,8 @@ public abstract class RegionServerCallable<T> implements RetryingCallable<T> {
   static final Log LOG = LogFactory.getLog(RegionServerCallable.class);
   private final HConnection connection;
   private final TableName tableName;
-  private final byte [] row;
-  private HRegionLocation location;
+  protected final byte [] row;
+  protected HRegionLocation location;
   private ClientService.BlockingInterface stub;
 
   protected final static int MIN_WAIT_DEAD_SERVER = 10000;

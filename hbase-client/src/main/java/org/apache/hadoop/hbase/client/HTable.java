@@ -746,13 +746,30 @@ public class HTable implements HTableInterface {
    */
   @Override
   public Result get(final Get get) throws IOException {
-    RegionServerCallable<Result> callable = new RegionServerCallable<Result>(this.connection,
-        getName(), get.getRow()) {
-      public Result call() throws IOException {
-        return ProtobufUtil.get(getStub(), getLocation().getRegionInfo().getRegionName(), get);
-      }
-    };
-    return rpcCallerFactory.<Result> newCaller().callWithRetries(callable, this.operationTimeout);
+    int replicaCount =  getTableDescriptor().getNumRegionReplicas(); // todo: how expensive is this?
+
+    if (replicaCount == 0){
+      // Good old call.
+      RegionServerCallable<Result> callable = new RegionServerCallable<Result>(this.connection,
+          getName(), get.getRow()) {
+        public Result call() throws IOException {
+          return ProtobufUtil.get(getStub(), getLocation().getRegionInfo().getRegionName(), get);
+        }
+      };
+      return rpcCallerFactory.<Result> newCaller().callWithRetries(callable, this.operationTimeout);
+    }
+
+    // Call that takes into account the replica
+    int retries =
+        configuration.getInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER,
+            HConstants.DEFAULT_HBASE_CLIENT_RETRIES_NUMBER);
+    int callTimeout = configuration.getInt(
+        HConstants.HBASE_CLIENT_OPERATION_TIMEOUT,
+        HConstants.DEFAULT_HBASE_CLIENT_OPERATION_TIMEOUT);
+
+    RpcRetryingCallerWithFallBack callable =
+        new RpcRetryingCallerWithFallBack(this.connection, get, pool, replicaCount, retries, callTimeout);
+    return callable.call();
   }
 
   /**
