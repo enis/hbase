@@ -74,6 +74,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 public class Result implements CellScannable {
   private Cell[] cells;
   private Boolean exists; // if the query was just to check existence.
+  private boolean stale = false;
   // We're not using java serialization.  Transient here is just a marker to say
   // that this is where we cache row if we're ever asked for it.
   private transient byte [] row = null;
@@ -84,6 +85,7 @@ public class Result implements CellScannable {
   private static byte [] buffer = null;
   private static final int PAD_WIDTH = 128;
   public static final Result EMPTY_RESULT = new Result();
+
 
   /**
    * Creates an empty Result w/ no KeyValue payload; returns null if you call {@link #rawCells()}.
@@ -812,5 +814,13 @@ public class Result implements CellScannable {
 
   public void setExists(Boolean exists) {
     this.exists = exists;
+  }
+
+  public boolean isStale() {
+    return stale;
+  }
+
+  public void setStale(boolean stale) {
+    this.stale = stale;
   }
 }

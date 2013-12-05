@@ -1184,6 +1184,34 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
   }
 
   /**
+   * Extract the list of the replicas in a result. Expects that the replicas
+   *  are ordered, i.e. 1, 2, 3, .... If the replicas id are 1;2;4 the replicaId '4' won't
+   *  be loaded.
+   * @return the secondary region name, null if there are none.
+   */
+  public static List<ServerName> getSecondaryServers(final Result result) {
+    int replicaId = 1;
+    List<ServerName> snl = null;
+
+    for (; ; ) {
+      byte[] res =
+          result.getValue(HConstants.CATALOG_FAMILY, MetaReader.getServerColumn(replicaId));
+      if (res == null) {
+        return snl;
+      }
+      if (snl == null) {
+        snl = new ArrayList<ServerName>();
+      }
+      try {
+        snl.add(ServerName.parseFrom(res));
+      } catch (DeserializationException e) {
+        LOG.error("Can't parse the server name for a replica - continuing, " +
+            "but this replica won't be available for this client", e);
+      }
+    }
+  }
+
+  /**
    * Parses an HRegionInfo instance from the passed in stream.  Presumes the HRegionInfo was
    * serialized to the stream with {@link #toDelimitedByteArray()}
    * @param in

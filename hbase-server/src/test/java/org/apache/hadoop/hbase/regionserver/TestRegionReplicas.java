@@ -19,16 +19,27 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HRegionLocation;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.NotServingRegionException;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.TestMetaReaderEditor;
+import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
+import org.apache.hadoop.hbase.coprocessor.ObserverContext;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.RequestConverter;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos;
@@ -49,7 +60,7 @@ import com.google.protobuf.ServiceException;
  * cluster. See {@link TestRegionServerNoMaster}.
  */
 public class TestRegionReplicas {
-  private static final int NB_SERVERS = 1;
+  private static final int NB_SERVERS = 2;
   private static HTable table;
   private static final byte[] row = "TestRegionReplicas".getBytes();
 
@@ -59,13 +70,43 @@ public class TestRegionReplicas {
   private static final HBaseTestingUtility HTU = new HBaseTestingUtility();
   private static final byte[] f = HConstants.CATALOG_FAMILY;
 
+
+  /**
+   * This copro will slow down the main replica only.
+   */
+  public static class SlowMeCopro extends BaseRegionObserver {
+    static final AtomicLong sleepTime = new AtomicLong(0);
+    static final AtomicReference<CountDownLatch> cdl =
+        new AtomicReference<CountDownLatch>(new CountDownLatch(0));
+
+    public SlowMeCopro() {
+    }
+
+    @Override
+    public void preGetOp(final ObserverContext<RegionCoprocessorEnvironment> e,
+                         final Get get, final List<Cell> results) throws IOException {
+
+      if (e.getEnvironment().getRegion().getRegionInfo().isPrimaryReplica()) {
+        try {
+          if (sleepTime.get() > 0) {
+            Thread.sleep(sleepTime.get());
+          }
+          cdl.get().await();
+        } catch (InterruptedException e1) {
+          throw new RuntimeException(e1);
+        }
+      }
+    }
+  }
+
   @BeforeClass
   public static void before() throws Exception {
     HTU.startMiniCluster(NB_SERVERS);
-    final byte[] tableName = Bytes.toBytes(TestRegionReplicas.class.getSimpleName());
 
     // Create table then get the single region for our new table.
-    table = HTU.createTable(tableName, f);
+    HTableDescriptor hdt = HTU.createTableDescriptor(TestRegionReplicas.class.getSimpleName());
+    hdt.addCoprocessor(SlowMeCopro.class.getName());
+    table = HTU.createTable(hdt, new byte[][]{f}, HTU.getConfiguration());
 
     hriPrimary = table.getRegionLocation(row, false).getRegionInfo();
 
@@ -161,6 +202,149 @@ public class TestRegionReplicas {
       closeRegion(hriSecondary);
     }
   }
+
+  @Test(timeout = 60000)
+  public void testUseRegionWithoutReplica() throws Exception {
+    byte[] b1 = "testUseRegionWithoutReplica".getBytes();
+
+    Get g = new Get(b1);
+    Result r = table.get(g);
+    Assert.assertFalse(r.isStale());
+  }
+
+  @Test(timeout = 60000)
+  public void testLocations() throws Exception {
+    byte[] b1 = "testUseRegionWithReplica".getBytes();
+
+    HRegionLocation hrl = HTU.getHBaseAdmin().getConnection().
+        getRegionLocation(table.getName(), b1, true);
+    Assert.assertTrue(hrl.getSecondaryServers() == null || hrl.getSecondaryServers().isEmpty());
+
+    openRegion(hriSecondary);
+    try {
+      hrl = HTU.getHBaseAdmin().getConnection().getRegionLocation(table.getName(), b1, true);
+      Assert.assertTrue(hrl.getSecondaryServers() != null);
+      Assert.assertTrue(hrl.getSecondaryServers().size() == 1);
+    } finally {
+      closeRegion(hriSecondary);
+    }
+  }
+
+  @Test(timeout = 60000)
+  public void testGetNoResultNoStaleRegionWithReplica() throws Exception {
+    openRegion(hriSecondary);
+    byte[] b1 = "testUseRegionWithReplica".getBytes();
+
+    try {
+      // A get works and is not stale
+      Get g = new Get(b1);
+      Result r = table.get(g);
+      Assert.assertFalse(r.isStale());
+    } finally {
+      closeRegion(hriSecondary);
+    }
+  }
+
+
+  @Test
+  public void testGetNoResultStaleRegionWithReplica() throws Exception {
+    openRegion(hriSecondary);
+    byte[] b1 = "testGetNoResultStaleRegionWithReplica".getBytes();
+
+    try {
+      SlowMeCopro.cdl.set(new CountDownLatch(1));
+
+      Get g = new Get(b1);
+      g.setAllowStale(true);
+      Result r = table.get(g);
+      Assert.assertTrue(r.isStale());
+
+    } finally {
+      SlowMeCopro.cdl.get().countDown();
+      closeRegion(hriSecondary);
+    }
+  }
+
+  @Test
+  public void testGetNoResultNotStaleSleepRegionWithReplica() throws Exception {
+    openRegion(hriSecondary);
+    byte[] b1 = "testGetNoResultNotStaleSleepRegionWithReplica".getBytes();
+
+    try {
+      // We sleep; but we won't go to the stale region as we don't get the stale by default.
+      SlowMeCopro.sleepTime.set(2000);
+
+      Get g = new Get(b1);
+      Result r = table.get(g);
+      Assert.assertFalse(r.isStale());
+
+    } finally {
+      SlowMeCopro.sleepTime.set(0);
+      closeRegion(hriSecondary);
+    }
+  }
+
+  //@Test() // does not work.
+  public void testMove() throws Exception {
+    openRegion(hriSecondary);
+    try {
+      HTU.getHBaseAdmin().move(hriPrimary.getEncodedNameAsBytes(), null);
+      Get g = new Get("a get to be sure the move is finished".getBytes());
+      table.get(g);
+    } finally {
+      closeRegion(hriSecondary);
+    }
+  }
+          /*
+  @Test
+  public void testUseRegionWithReplica() throws Exception {
+    openRegion(hriSecondary);
+    byte[] b1 = "testUseRegionWithReplica".getBytes();
+
+    try {
+      // A simple put works, even if there here a second replica
+      Put p = new Put(b1);
+      p.add(f, b1, b1);
+      table.put(p);
+
+      // A get works and is not stale
+      Get g = new Get(b1);
+      Result r = table.get(g);
+      Assert.assertFalse(r.isStale());
+
+      // Even if it we have to wait a little on the main region
+      sleepTime.set(2000);
+      g = new Get(b1);
+      r = table.get(g);
+      Assert.assertFalse(r.isStale());
+      sleepTime.set(0);
+
+      // But if we ask for stale we will get it
+      cdl.set(new CountDownLatch(1));
+      g = new Get(b1);
+      g.setAllowStale(true);
+      r = table.get(g);
+      Assert.assertTrue(r.isStale());
+      cdl.get().countDown();
+
+      // But if we ask for stale we will get it
+      cdl.set(new CountDownLatch(1));
+      g = new Get(b1);
+      g.setAllowStale(true);
+      r = table.get(g);
+      Assert.assertTrue(r.isStale());
+      cdl.get().countDown();
+
+      g = new Get(b1);
+      r = table.get(g);
+      Assert.assertFalse(r.isStale());
+
+    } finally {
+      Delete d = new Delete(b1);
+      table.delete(d);
+      closeRegion(hriSecondary);
+    }
+  }       */
 
   /** Tests that the meta location is saved for secondary regions */
   @Test(timeout = 60000)

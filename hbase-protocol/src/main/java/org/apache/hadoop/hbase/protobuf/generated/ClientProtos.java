@@ -789,6 +789,24 @@ public final class ClientProtos {
      * </pre>
      */
     boolean getClosestRowBefore();
+
+    // optional bool allow_stale = 12 [default = false];
+    /**
+     * <code>optional bool allow_stale = 12 [default = false];</code>
+     *
+     * <pre>
+     * If the server can return stale data.
+     * </pre>
+     */
+    boolean hasAllowStale();
+    /**
+     * <code>optional bool allow_stale = 12 [default = false];</code>
+     *
+     * <pre>
+     * If the server can return stale data.
+     * </pre>
+     */
+    boolean getAllowStale();
   }
   /**
    * Protobuf type {@code Get}
@@ -924,6 +942,11 @@ public final class ClientProtos {
             case 88: {
               bitField0_ |= 0x00000100;
               closestRowBefore_ = input.readBool();
+              break;
+            }
+            case 96: {
+              bitField0_ |= 0x00000200;
+              allowStale_ = input.readBool();
               break;
             }
           }
@@ -1220,6 +1243,30 @@ public final class ClientProtos {
       return closestRowBefore_;
     }
 
+    // optional bool allow_stale = 12 [default = false];
+    public static final int ALLOW_STALE_FIELD_NUMBER = 12;
+    private boolean allowStale_;
+    /**
+     * <code>optional bool allow_stale = 12 [default = false];</code>
+     *
+     * <pre>
+     * If the server can return stale data.
+     * </pre>
+     */
+    public boolean hasAllowStale() {
+      return ((bitField0_ & 0x00000200) == 0x00000200);
+    }
+    /**
+     * <code>optional bool allow_stale = 12 [default = false];</code>
+     *
+     * <pre>
+     * If the server can return stale data.
+     * </pre>
+     */
+    public boolean getAllowStale() {
+      return allowStale_;
+    }
+
     private void initFields() {
       row_ = com.google.protobuf.ByteString.EMPTY;
       column_ = java.util.Collections.emptyList();
@@ -1232,6 +1279,7 @@ public final class ClientProtos {
       storeOffset_ = 0;
       existenceOnly_ = false;
       closestRowBefore_ = false;
+      allowStale_ = false;
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -1300,6 +1348,9 @@ public final class ClientProtos {
       if (((bitField0_ & 0x00000100) == 0x00000100)) {
         output.writeBool(11, closestRowBefore_);
       }
+      if (((bitField0_ & 0x00000200) == 0x00000200)) {
+        output.writeBool(12, allowStale_);
+      }
       getUnknownFields().writeTo(output);
     }
 
@@ -1352,6 +1403,10 @@ public final class ClientProtos {
       if (((bitField0_ & 0x00000100) == 0x00000100)) {
         size += com.google.protobuf.CodedOutputStream
           .computeBoolSize(11, closestRowBefore_);
+      }
+      if (((bitField0_ & 0x00000200) == 0x00000200)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBoolSize(12, allowStale_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -1425,6 +1480,11 @@ public final class ClientProtos {
         result = result && (getClosestRowBefore()
             == other.getClosestRowBefore());
       }
+      result = result && (hasAllowStale() == other.hasAllowStale());
+      if (hasAllowStale()) {
+        result = result && (getAllowStale()
+            == other.getAllowStale());
+      }
       result = result &&
           getUnknownFields().equals(other.getUnknownFields());
       return result;
@@ -1481,6 +1541,10 @@ public final class ClientProtos {
       if (hasClosestRowBefore()) {
         hash = (37 * hash) + CLOSEST_ROW_BEFORE_FIELD_NUMBER;
         hash = (53 * hash) + hashBoolean(getClosestRowBefore());
+      }
+      if (hasAllowStale()) {
+        hash = (37 * hash) + ALLOW_STALE_FIELD_NUMBER;
+        hash = (53 * hash) + hashBoolean(getAllowStale());
       }
       hash = (29 * hash) + getUnknownFields().hashCode();
       memoizedHashCode = hash;
@@ -1641,6 +1705,8 @@ public final class ClientProtos {
         bitField0_ = (bitField0_ & ~0x00000200);
         closestRowBefore_ = false;
         bitField0_ = (bitField0_ & ~0x00000400);
+        allowStale_ = false;
+        bitField0_ = (bitField0_ & ~0x00000800);
         return this;
       }
 
@@ -1731,6 +1797,10 @@ public final class ClientProtos {
           to_bitField0_ |= 0x00000100;
         }
         result.closestRowBefore_ = closestRowBefore_;
+        if (((from_bitField0_ & 0x00000800) == 0x00000800)) {
+          to_bitField0_ |= 0x00000200;
+        }
+        result.allowStale_ = allowStale_;
         result.bitField0_ = to_bitField0_;
         onBuilt();
         return result;
@@ -1825,6 +1895,9 @@ public final class ClientProtos {
         }
         if (other.hasClosestRowBefore()) {
           setClosestRowBefore(other.getClosestRowBefore());
+        }
+        if (other.hasAllowStale()) {
+          setAllowStale(other.getAllowStale());
         }
         this.mergeUnknownFields(other.getUnknownFields());
         return this;
@@ -2863,6 +2936,55 @@ public final class ClientProtos {
         return this;
       }
 
+      // optional bool allow_stale = 12 [default = false];
+      private boolean allowStale_ ;
+      /**
+       * <code>optional bool allow_stale = 12 [default = false];</code>
+       *
+       * <pre>
+       * If the server can return stale data.
+       * </pre>
+       */
+      public boolean hasAllowStale() {
+        return ((bitField0_ & 0x00000800) == 0x00000800);
+      }
+      /**
+       * <code>optional bool allow_stale = 12 [default = false];</code>
+       *
+       * <pre>
+       * If the server can return stale data.
+       * </pre>
+       */
+      public boolean getAllowStale() {
+        return allowStale_;
+      }
+      /**
+       * <code>optional bool allow_stale = 12 [default = false];</code>
+       *
+       * <pre>
+       * If the server can return stale data.
+       * </pre>
+       */
+      public Builder setAllowStale(boolean value) {
+        bitField0_ |= 0x00000800;
+        allowStale_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>optional bool allow_stale = 12 [default = false];</code>
+       *
+       * <pre>
+       * If the server can return stale data.
+       * </pre>
+       */
+      public Builder clearAllowStale() {
+        bitField0_ = (bitField0_ & ~0x00000800);
+        allowStale_ = false;
+        onChanged();
+        return this;
+      }
+
       // @@protoc_insertion_point(builder_scope:Get)
     }
 
@@ -2974,6 +3096,26 @@ public final class ClientProtos {
      * </pre>
      */
     boolean getExists();
+
+    // optional bool contain_stale = 4 [default = false];
+    /**
+     * <code>optional bool contain_stale = 4 [default = false];</code>
+     *
+     * <pre>
+     * If the server returned stale data. This will be true if the server was allowed
+     *  to return stale data, and effectively returned data that could be stale.
+     * </pre>
+     */
+    boolean hasContainStale();
+    /**
+     * <code>optional bool contain_stale = 4 [default = false];</code>
+     *
+     * <pre>
+     * If the server returned stale data. This will be true if the server was allowed
+     *  to return stale data, and effectively returned data that could be stale.
+     * </pre>
+     */
+    boolean getContainStale();
   }
   /**
    * Protobuf type {@code Result}
@@ -3042,6 +3184,11 @@ public final class ClientProtos {
             case 24: {
               bitField0_ |= 0x00000002;
               exists_ = input.readBool();
+              break;
+            }
+            case 32: {
+              bitField0_ |= 0x00000004;
+              containStale_ = input.readBool();
               break;
             }
           }
@@ -3208,10 +3355,37 @@ public final class ClientProtos {
       return exists_;
     }
 
+    // optional bool contain_stale = 4 [default = false];
+    public static final int CONTAIN_STALE_FIELD_NUMBER = 4;
+    private boolean containStale_;
+    /**
+     * <code>optional bool contain_stale = 4 [default = false];</code>
+     *
+     * <pre>
+     * If the server returned stale data. This will be true if the server was allowed
+     *  to return stale data, and effectively returned data that could be stale.
+     * </pre>
+     */
+    public boolean hasContainStale() {
+      return ((bitField0_ & 0x00000004) == 0x00000004);
+    }
+    /**
+     * <code>optional bool contain_stale = 4 [default = false];</code>
+     *
+     * <pre>
+     * If the server returned stale data. This will be true if the server was allowed
+     *  to return stale data, and effectively returned data that could be stale.
+     * </pre>
+     */
+    public boolean getContainStale() {
+      return containStale_;
+    }
+
     private void initFields() {
       cell_ = java.util.Collections.emptyList();
       associatedCellCount_ = 0;
       exists_ = false;
+      containStale_ = false;
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -3234,6 +3408,9 @@ public final class ClientProtos {
       if (((bitField0_ & 0x00000002) == 0x00000002)) {
         output.writeBool(3, exists_);
       }
+      if (((bitField0_ & 0x00000004) == 0x00000004)) {
+        output.writeBool(4, containStale_);
+      }
       getUnknownFields().writeTo(output);
     }
 
@@ -3254,6 +3431,10 @@ public final class ClientProtos {
       if (((bitField0_ & 0x00000002) == 0x00000002)) {
         size += com.google.protobuf.CodedOutputStream
           .computeBoolSize(3, exists_);
+      }
+      if (((bitField0_ & 0x00000004) == 0x00000004)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBoolSize(4, containStale_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -3290,6 +3471,11 @@ public final class ClientProtos {
         result = result && (getExists()
             == other.getExists());
       }
+      result = result && (hasContainStale() == other.hasContainStale());
+      if (hasContainStale()) {
+        result = result && (getContainStale()
+            == other.getContainStale());
+      }
       result = result &&
           getUnknownFields().equals(other.getUnknownFields());
       return result;
@@ -3314,6 +3500,10 @@ public final class ClientProtos {
       if (hasExists()) {
         hash = (37 * hash) + EXISTS_FIELD_NUMBER;
         hash = (53 * hash) + hashBoolean(getExists());
+      }
+      if (hasContainStale()) {
+        hash = (37 * hash) + CONTAIN_STALE_FIELD_NUMBER;
+        hash = (53 * hash) + hashBoolean(getContainStale());
       }
       hash = (29 * hash) + getUnknownFields().hashCode();
       memoizedHashCode = hash;
@@ -3435,6 +3625,8 @@ public final class ClientProtos {
         bitField0_ = (bitField0_ & ~0x00000002);
         exists_ = false;
         bitField0_ = (bitField0_ & ~0x00000004);
+        containStale_ = false;
+        bitField0_ = (bitField0_ & ~0x00000008);
         return this;
       }
 
@@ -3480,6 +3672,10 @@ public final class ClientProtos {
           to_bitField0_ |= 0x00000002;
         }
         result.exists_ = exists_;
+        if (((from_bitField0_ & 0x00000008) == 0x00000008)) {
+          to_bitField0_ |= 0x00000004;
+        }
+        result.containStale_ = containStale_;
         result.bitField0_ = to_bitField0_;
         onBuilt();
         return result;
@@ -3527,6 +3723,9 @@ public final class ClientProtos {
         }
         if (other.hasExists()) {
           setExists(other.getExists());
+        }
+        if (other.hasContainStale()) {
+          setContainStale(other.getContainStale());
         }
         this.mergeUnknownFields(other.getUnknownFields());
         return this;
@@ -4003,6 +4202,59 @@ public final class ClientProtos {
       public Builder clearExists() {
         bitField0_ = (bitField0_ & ~0x00000004);
         exists_ = false;
+        onChanged();
+        return this;
+      }
+
+      // optional bool contain_stale = 4 [default = false];
+      private boolean containStale_ ;
+      /**
+       * <code>optional bool contain_stale = 4 [default = false];</code>
+       *
+       * <pre>
+       * If the server returned stale data. This will be true if the server was allowed
+       *  to return stale data, and effectively returned data that could be stale.
+       * </pre>
+       */
+      public boolean hasContainStale() {
+        return ((bitField0_ & 0x00000008) == 0x00000008);
+      }
+      /**
+       * <code>optional bool contain_stale = 4 [default = false];</code>
+       *
+       * <pre>
+       * If the server returned stale data. This will be true if the server was allowed
+       *  to return stale data, and effectively returned data that could be stale.
+       * </pre>
+       */
+      public boolean getContainStale() {
+        return containStale_;
+      }
+      /**
+       * <code>optional bool contain_stale = 4 [default = false];</code>
+       *
+       * <pre>
+       * If the server returned stale data. This will be true if the server was allowed
+       *  to return stale data, and effectively returned data that could be stale.
+       * </pre>
+       */
+      public Builder setContainStale(boolean value) {
+        bitField0_ |= 0x00000008;
+        containStale_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>optional bool contain_stale = 4 [default = false];</code>
+       *
+       * <pre>
+       * If the server returned stale data. This will be true if the server was allowed
+       *  to return stale data, and effectively returned data that could be stale.
+       * </pre>
+       */
+      public Builder clearContainStale() {
+        bitField0_ = (bitField0_ & ~0x00000008);
+        containStale_ = false;
         onChanged();
         return this;
       }
@@ -27518,7 +27770,7 @@ public final class ClientProtos {
     java.lang.String[] descriptorData = {
       "\n\014Client.proto\032\013HBase.proto\032\014Filter.prot" +
       "o\032\nCell.proto\032\020Comparator.proto\"+\n\006Colum" +
-      "n\022\016\n\006family\030\001 \002(\014\022\021\n\tqualifier\030\002 \003(\014\"\251\002\n" +
+      "n\022\016\n\006family\030\001 \002(\014\022\021\n\tqualifier\030\002 \003(\014\"\305\002\n" +
       "\003Get\022\013\n\003row\030\001 \002(\014\022\027\n\006column\030\002 \003(\0132\007.Colu" +
       "mn\022!\n\tattribute\030\003 \003(\0132\016.NameBytesPair\022\027\n" +
       "\006filter\030\004 \001(\0132\007.Filter\022\036\n\ntime_range\030\005 \001" +
@@ -27526,90 +27778,91 @@ public final class ClientProtos {
       "\032\n\014cache_blocks\030\007 \001(\010:\004true\022\023\n\013store_lim" +
       "it\030\010 \001(\r\022\024\n\014store_offset\030\t \001(\r\022\035\n\016existe" +
       "nce_only\030\n \001(\010:\005false\022!\n\022closest_row_bef",
-      "ore\030\013 \001(\010:\005false\"L\n\006Result\022\023\n\004cell\030\001 \003(\013" +
-      "2\005.Cell\022\035\n\025associated_cell_count\030\002 \001(\005\022\016" +
-      "\n\006exists\030\003 \001(\010\"A\n\nGetRequest\022 \n\006region\030\001" +
-      " \002(\0132\020.RegionSpecifier\022\021\n\003get\030\002 \002(\0132\004.Ge" +
-      "t\"&\n\013GetResponse\022\027\n\006result\030\001 \001(\0132\007.Resul" +
-      "t\"\200\001\n\tCondition\022\013\n\003row\030\001 \002(\014\022\016\n\006family\030\002" +
-      " \002(\014\022\021\n\tqualifier\030\003 \002(\014\022\"\n\014compare_type\030" +
-      "\004 \002(\0162\014.CompareType\022\037\n\ncomparator\030\005 \002(\0132" +
-      "\013.Comparator\"\227\006\n\rMutationProto\022\013\n\003row\030\001 " +
-      "\001(\014\0220\n\013mutate_type\030\002 \001(\0162\033.MutationProto",
-      ".MutationType\0220\n\014column_value\030\003 \003(\0132\032.Mu" +
-      "tationProto.ColumnValue\022\021\n\ttimestamp\030\004 \001" +
-      "(\004\022!\n\tattribute\030\005 \003(\0132\016.NameBytesPair\022:\n" +
-      "\ndurability\030\006 \001(\0162\031.MutationProto.Durabi" +
-      "lity:\013USE_DEFAULT\022\036\n\ntime_range\030\007 \001(\0132\n." +
-      "TimeRange\022\035\n\025associated_cell_count\030\010 \001(\005" +
-      "\032\330\001\n\013ColumnValue\022\016\n\006family\030\001 \002(\014\022B\n\017qual" +
-      "ifier_value\030\002 \003(\0132).MutationProto.Column" +
-      "Value.QualifierValue\032u\n\016QualifierValue\022\021" +
-      "\n\tqualifier\030\001 \001(\014\022\r\n\005value\030\002 \001(\014\022\021\n\ttime",
-      "stamp\030\003 \001(\004\022.\n\013delete_type\030\004 \001(\0162\031.Mutat" +
-      "ionProto.DeleteType\"W\n\nDurability\022\017\n\013USE" +
-      "_DEFAULT\020\000\022\014\n\010SKIP_WAL\020\001\022\r\n\tASYNC_WAL\020\002\022" +
-      "\014\n\010SYNC_WAL\020\003\022\r\n\tFSYNC_WAL\020\004\">\n\014Mutation" +
-      "Type\022\n\n\006APPEND\020\000\022\r\n\tINCREMENT\020\001\022\007\n\003PUT\020\002" +
-      "\022\n\n\006DELETE\020\003\"p\n\nDeleteType\022\026\n\022DELETE_ONE" +
-      "_VERSION\020\000\022\034\n\030DELETE_MULTIPLE_VERSIONS\020\001" +
-      "\022\021\n\rDELETE_FAMILY\020\002\022\031\n\025DELETE_FAMILY_VER" +
-      "SION\020\003\"r\n\rMutateRequest\022 \n\006region\030\001 \002(\0132" +
-      "\020.RegionSpecifier\022 \n\010mutation\030\002 \002(\0132\016.Mu",
-      "tationProto\022\035\n\tcondition\030\003 \001(\0132\n.Conditi" +
-      "on\"<\n\016MutateResponse\022\027\n\006result\030\001 \001(\0132\007.R" +
-      "esult\022\021\n\tprocessed\030\002 \001(\010\"\344\002\n\004Scan\022\027\n\006col" +
-      "umn\030\001 \003(\0132\007.Column\022!\n\tattribute\030\002 \003(\0132\016." +
-      "NameBytesPair\022\021\n\tstart_row\030\003 \001(\014\022\020\n\010stop" +
-      "_row\030\004 \001(\014\022\027\n\006filter\030\005 \001(\0132\007.Filter\022\036\n\nt" +
-      "ime_range\030\006 \001(\0132\n.TimeRange\022\027\n\014max_versi" +
-      "ons\030\007 \001(\r:\0011\022\032\n\014cache_blocks\030\010 \001(\010:\004true" +
-      "\022\022\n\nbatch_size\030\t \001(\r\022\027\n\017max_result_size\030" +
-      "\n \001(\004\022\023\n\013store_limit\030\013 \001(\r\022\024\n\014store_offs",
-      "et\030\014 \001(\r\022&\n\036load_column_families_on_dema" +
-      "nd\030\r \001(\010\022\r\n\005small\030\016 \001(\010\"\236\001\n\013ScanRequest\022" +
-      " \n\006region\030\001 \001(\0132\020.RegionSpecifier\022\023\n\004sca" +
-      "n\030\002 \001(\0132\005.Scan\022\022\n\nscanner_id\030\003 \001(\004\022\026\n\016nu" +
-      "mber_of_rows\030\004 \001(\r\022\025\n\rclose_scanner\030\005 \001(" +
-      "\010\022\025\n\rnext_call_seq\030\006 \001(\004\"y\n\014ScanResponse" +
-      "\022\030\n\020cells_per_result\030\001 \003(\r\022\022\n\nscanner_id" +
-      "\030\002 \001(\004\022\024\n\014more_results\030\003 \001(\010\022\013\n\003ttl\030\004 \001(" +
-      "\r\022\030\n\007results\030\005 \003(\0132\007.Result\"\263\001\n\024BulkLoad" +
-      "HFileRequest\022 \n\006region\030\001 \002(\0132\020.RegionSpe",
-      "cifier\0225\n\013family_path\030\002 \003(\0132 .BulkLoadHF" +
-      "ileRequest.FamilyPath\022\026\n\016assign_seq_num\030" +
-      "\003 \001(\010\032*\n\nFamilyPath\022\016\n\006family\030\001 \002(\014\022\014\n\004p" +
-      "ath\030\002 \002(\t\"\'\n\025BulkLoadHFileResponse\022\016\n\006lo" +
-      "aded\030\001 \002(\010\"a\n\026CoprocessorServiceCall\022\013\n\003" +
-      "row\030\001 \002(\014\022\024\n\014service_name\030\002 \002(\t\022\023\n\013metho" +
-      "d_name\030\003 \002(\t\022\017\n\007request\030\004 \002(\014\"d\n\031Coproce" +
-      "ssorServiceRequest\022 \n\006region\030\001 \002(\0132\020.Reg" +
-      "ionSpecifier\022%\n\004call\030\002 \002(\0132\027.Coprocessor" +
-      "ServiceCall\"]\n\032CoprocessorServiceRespons",
-      "e\022 \n\006region\030\001 \002(\0132\020.RegionSpecifier\022\035\n\005v" +
-      "alue\030\002 \002(\0132\016.NameBytesPair\"L\n\006Action\022\r\n\005" +
-      "index\030\001 \001(\r\022 \n\010mutation\030\002 \001(\0132\016.Mutation" +
-      "Proto\022\021\n\003get\030\003 \001(\0132\004.Get\"Y\n\014RegionAction" +
-      "\022 \n\006region\030\001 \002(\0132\020.RegionSpecifier\022\016\n\006at" +
-      "omic\030\002 \001(\010\022\027\n\006action\030\003 \003(\0132\007.Action\"^\n\021R" +
-      "esultOrException\022\r\n\005index\030\001 \001(\r\022\027\n\006resul" +
-      "t\030\002 \001(\0132\007.Result\022!\n\texception\030\003 \001(\0132\016.Na" +
-      "meBytesPair\"f\n\022RegionActionResult\022-\n\021res" +
-      "ultOrException\030\001 \003(\0132\022.ResultOrException",
-      "\022!\n\texception\030\002 \001(\0132\016.NameBytesPair\"3\n\014M" +
-      "ultiRequest\022#\n\014regionAction\030\001 \003(\0132\r.Regi" +
-      "onAction\"@\n\rMultiResponse\022/\n\022regionActio" +
-      "nResult\030\001 \003(\0132\023.RegionActionResult2\261\002\n\rC" +
-      "lientService\022 \n\003Get\022\013.GetRequest\032\014.GetRe" +
-      "sponse\022)\n\006Mutate\022\016.MutateRequest\032\017.Mutat" +
-      "eResponse\022#\n\004Scan\022\014.ScanRequest\032\r.ScanRe" +
-      "sponse\022>\n\rBulkLoadHFile\022\025.BulkLoadHFileR" +
-      "equest\032\026.BulkLoadHFileResponse\022F\n\013ExecSe" +
-      "rvice\022\032.CoprocessorServiceRequest\032\033.Copr",
-      "ocessorServiceResponse\022&\n\005Multi\022\r.MultiR" +
-      "equest\032\016.MultiResponseBB\n*org.apache.had" +
-      "oop.hbase.protobuf.generatedB\014ClientProt" +
-      "osH\001\210\001\001\240\001\001"
+      "ore\030\013 \001(\010:\005false\022\032\n\013allow_stale\030\014 \001(\010:\005f" +
+      "alse\"j\n\006Result\022\023\n\004cell\030\001 \003(\0132\005.Cell\022\035\n\025a" +
+      "ssociated_cell_count\030\002 \001(\005\022\016\n\006exists\030\003 \001" +
+      "(\010\022\034\n\rcontain_stale\030\004 \001(\010:\005false\"A\n\nGetR" +
+      "equest\022 \n\006region\030\001 \002(\0132\020.RegionSpecifier" +
+      "\022\021\n\003get\030\002 \002(\0132\004.Get\"&\n\013GetResponse\022\027\n\006re" +
+      "sult\030\001 \001(\0132\007.Result\"\200\001\n\tCondition\022\013\n\003row" +
+      "\030\001 \002(\014\022\016\n\006family\030\002 \002(\014\022\021\n\tqualifier\030\003 \002(" +
+      "\014\022\"\n\014compare_type\030\004 \002(\0162\014.CompareType\022\037\n" +
+      "\ncomparator\030\005 \002(\0132\013.Comparator\"\227\006\n\rMutat",
+      "ionProto\022\013\n\003row\030\001 \001(\014\0220\n\013mutate_type\030\002 \001" +
+      "(\0162\033.MutationProto.MutationType\0220\n\014colum" +
+      "n_value\030\003 \003(\0132\032.MutationProto.ColumnValu" +
+      "e\022\021\n\ttimestamp\030\004 \001(\004\022!\n\tattribute\030\005 \003(\0132" +
+      "\016.NameBytesPair\022:\n\ndurability\030\006 \001(\0162\031.Mu" +
+      "tationProto.Durability:\013USE_DEFAULT\022\036\n\nt" +
+      "ime_range\030\007 \001(\0132\n.TimeRange\022\035\n\025associate" +
+      "d_cell_count\030\010 \001(\005\032\330\001\n\013ColumnValue\022\016\n\006fa" +
+      "mily\030\001 \002(\014\022B\n\017qualifier_value\030\002 \003(\0132).Mu" +
+      "tationProto.ColumnValue.QualifierValue\032u",
+      "\n\016QualifierValue\022\021\n\tqualifier\030\001 \001(\014\022\r\n\005v" +
+      "alue\030\002 \001(\014\022\021\n\ttimestamp\030\003 \001(\004\022.\n\013delete_" +
+      "type\030\004 \001(\0162\031.MutationProto.DeleteType\"W\n" +
+      "\nDurability\022\017\n\013USE_DEFAULT\020\000\022\014\n\010SKIP_WAL" +
+      "\020\001\022\r\n\tASYNC_WAL\020\002\022\014\n\010SYNC_WAL\020\003\022\r\n\tFSYNC" +
+      "_WAL\020\004\">\n\014MutationType\022\n\n\006APPEND\020\000\022\r\n\tIN" +
+      "CREMENT\020\001\022\007\n\003PUT\020\002\022\n\n\006DELETE\020\003\"p\n\nDelete" +
+      "Type\022\026\n\022DELETE_ONE_VERSION\020\000\022\034\n\030DELETE_M" +
+      "ULTIPLE_VERSIONS\020\001\022\021\n\rDELETE_FAMILY\020\002\022\031\n" +
+      "\025DELETE_FAMILY_VERSION\020\003\"r\n\rMutateReques",
+      "t\022 \n\006region\030\001 \002(\0132\020.RegionSpecifier\022 \n\010m" +
+      "utation\030\002 \002(\0132\016.MutationProto\022\035\n\tconditi" +
+      "on\030\003 \001(\0132\n.Condition\"<\n\016MutateResponse\022\027" +
+      "\n\006result\030\001 \001(\0132\007.Result\022\021\n\tprocessed\030\002 \001" +
+      "(\010\"\344\002\n\004Scan\022\027\n\006column\030\001 \003(\0132\007.Column\022!\n\t" +
+      "attribute\030\002 \003(\0132\016.NameBytesPair\022\021\n\tstart" +
+      "_row\030\003 \001(\014\022\020\n\010stop_row\030\004 \001(\014\022\027\n\006filter\030\005" +
+      " \001(\0132\007.Filter\022\036\n\ntime_range\030\006 \001(\0132\n.Time" +
+      "Range\022\027\n\014max_versions\030\007 \001(\r:\0011\022\032\n\014cache_" +
+      "blocks\030\010 \001(\010:\004true\022\022\n\nbatch_size\030\t \001(\r\022\027",
+      "\n\017max_result_size\030\n \001(\004\022\023\n\013store_limit\030\013" +
+      " \001(\r\022\024\n\014store_offset\030\014 \001(\r\022&\n\036load_colum" +
+      "n_families_on_demand\030\r \001(\010\022\r\n\005small\030\016 \001(" +
+      "\010\"\236\001\n\013ScanRequest\022 \n\006region\030\001 \001(\0132\020.Regi" +
+      "onSpecifier\022\023\n\004scan\030\002 \001(\0132\005.Scan\022\022\n\nscan" +
+      "ner_id\030\003 \001(\004\022\026\n\016number_of_rows\030\004 \001(\r\022\025\n\r" +
+      "close_scanner\030\005 \001(\010\022\025\n\rnext_call_seq\030\006 \001" +
+      "(\004\"y\n\014ScanResponse\022\030\n\020cells_per_result\030\001" +
+      " \003(\r\022\022\n\nscanner_id\030\002 \001(\004\022\024\n\014more_results" +
+      "\030\003 \001(\010\022\013\n\003ttl\030\004 \001(\r\022\030\n\007results\030\005 \003(\0132\007.R",
+      "esult\"\263\001\n\024BulkLoadHFileRequest\022 \n\006region" +
+      "\030\001 \002(\0132\020.RegionSpecifier\0225\n\013family_path\030" +
+      "\002 \003(\0132 .BulkLoadHFileRequest.FamilyPath\022" +
+      "\026\n\016assign_seq_num\030\003 \001(\010\032*\n\nFamilyPath\022\016\n" +
+      "\006family\030\001 \002(\014\022\014\n\004path\030\002 \002(\t\"\'\n\025BulkLoadH" +
+      "FileResponse\022\016\n\006loaded\030\001 \002(\010\"a\n\026Coproces" +
+      "sorServiceCall\022\013\n\003row\030\001 \002(\014\022\024\n\014service_n" +
+      "ame\030\002 \002(\t\022\023\n\013method_name\030\003 \002(\t\022\017\n\007reques" +
+      "t\030\004 \002(\014\"d\n\031CoprocessorServiceRequest\022 \n\006" +
+      "region\030\001 \002(\0132\020.RegionSpecifier\022%\n\004call\030\002",
+      " \002(\0132\027.CoprocessorServiceCall\"]\n\032Coproce" +
+      "ssorServiceResponse\022 \n\006region\030\001 \002(\0132\020.Re" +
+      "gionSpecifier\022\035\n\005value\030\002 \002(\0132\016.NameBytes" +
+      "Pair\"L\n\006Action\022\r\n\005index\030\001 \001(\r\022 \n\010mutatio" +
+      "n\030\002 \001(\0132\016.MutationProto\022\021\n\003get\030\003 \001(\0132\004.G" +
+      "et\"Y\n\014RegionAction\022 \n\006region\030\001 \002(\0132\020.Reg" +
+      "ionSpecifier\022\016\n\006atomic\030\002 \001(\010\022\027\n\006action\030\003" +
+      " \003(\0132\007.Action\"^\n\021ResultOrException\022\r\n\005in" +
+      "dex\030\001 \001(\r\022\027\n\006result\030\002 \001(\0132\007.Result\022!\n\tex" +
+      "ception\030\003 \001(\0132\016.NameBytesPair\"f\n\022RegionA",
+      "ctionResult\022-\n\021resultOrException\030\001 \003(\0132\022" +
+      ".ResultOrException\022!\n\texception\030\002 \001(\0132\016." +
+      "NameBytesPair\"3\n\014MultiRequest\022#\n\014regionA" +
+      "ction\030\001 \003(\0132\r.RegionAction\"@\n\rMultiRespo" +
+      "nse\022/\n\022regionActionResult\030\001 \003(\0132\023.Region" +
+      "ActionResult2\261\002\n\rClientService\022 \n\003Get\022\013." +
+      "GetRequest\032\014.GetResponse\022)\n\006Mutate\022\016.Mut" +
+      "ateRequest\032\017.MutateResponse\022#\n\004Scan\022\014.Sc" +
+      "anRequest\032\r.ScanResponse\022>\n\rBulkLoadHFil" +
+      "e\022\025.BulkLoadHFileRequest\032\026.BulkLoadHFile",
+      "Response\022F\n\013ExecService\022\032.CoprocessorSer" +
+      "viceRequest\032\033.CoprocessorServiceResponse" +
+      "\022&\n\005Multi\022\r.MultiRequest\032\016.MultiResponse" +
+      "BB\n*org.apache.hadoop.hbase.protobuf.gen" +
+      "eratedB\014ClientProtosH\001\210\001\001\240\001\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -27627,13 +27880,13 @@ public final class ClientProtos {
           internal_static_Get_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_Get_descriptor,
-              new java.lang.String[] { "Row", "Column", "Attribute", "Filter", "TimeRange", "MaxVersions", "CacheBlocks", "StoreLimit", "StoreOffset", "ExistenceOnly", "ClosestRowBefore", });
+              new java.lang.String[] { "Row", "Column", "Attribute", "Filter", "TimeRange", "MaxVersions", "CacheBlocks", "StoreLimit", "StoreOffset", "ExistenceOnly", "ClosestRowBefore", "AllowStale", });
           internal_static_Result_descriptor =
             getDescriptor().getMessageTypes().get(2);
           internal_static_Result_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_Result_descriptor,
-              new java.lang.String[] { "Cell", "AssociatedCellCount", "Exists", });
+              new java.lang.String[] { "Cell", "AssociatedCellCount", "Exists", "ContainStale", });
           internal_static_GetRequest_descriptor =
             getDescriptor().getMessageTypes().get(3);
           internal_static_GetRequest_fieldAccessorTable = new

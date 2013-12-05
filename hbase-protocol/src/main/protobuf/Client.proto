@@ -61,6 +61,9 @@ message Get {
   // If the row to get doesn't exist, return the
   // closest row before.
   optional bool closest_row_before = 11 [default = false];
+
+  // If the server can return stale data.
+  optional bool allow_stale = 12 [default = false];
 }
 
 message Result {
@@ -78,6 +81,10 @@ message Result {
   // used for Get to check existence only. Not set if existence_only was not set to true
   //  in the query.
   optional bool exists = 3;
+
+  // If the server returned stale data. This will be true if the server was allowed
+  //  to return stale data, and effectively returned data that could be stale.
+  optional bool contain_stale = 4 [default = false];
 }
 
 /**

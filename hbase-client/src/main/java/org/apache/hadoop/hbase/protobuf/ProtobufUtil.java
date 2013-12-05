@@ -412,6 +412,9 @@ public final class ProtobufUtil {
     if (proto.hasClosestRowBefore() && proto.getClosestRowBefore()){
       get.setClosestRowBefore(true);
     }
+    if (proto.hasAllowStale() && proto.getAllowStale()){
+      get.setAllowStale(true);
+    }
     return get;
   }
 
@@ -1052,6 +1055,9 @@ public final class ProtobufUtil {
     }
     if (result.getExists() != null){
       builder.setExists(result.getExists());
+    }
+    if (result.isStale()){
+      builder.setContainStale(true);
     }
     return builder.build();
   }

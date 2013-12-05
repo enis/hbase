@@ -1082,6 +1082,9 @@ public class HConnectionManager {
             // instantiate the location
             long seqNum = HRegionInfo.getSeqNumDuringOpen(result);
             HRegionLocation loc = new HRegionLocation(regionInfo, serverName, seqNum);
+
+            loc.setSecondaryServers(HRegionInfo.getSecondaryServers(result));
+
             // cache this meta entry
             cacheLocation(tableName, null, loc);
             return true;
@@ -1214,6 +1217,9 @@ public class HConnectionManager {
           // Instantiate the location
           location = new HRegionLocation(regionInfo, serverName,
             HRegionInfo.getSeqNumDuringOpen(regionInfoRow));
+
+          location.setSecondaryServers(HRegionInfo.getSecondaryServers(regionInfoRow));
+
           cacheLocation(tableName, null, location);
           return location;
         } catch (TableNotFoundException e) {
@@ -2150,6 +2156,8 @@ public class HConnectionManager {
     void updateCachedLocation(HRegionInfo hri, HRegionLocation source,
                               ServerName serverName, long seqNum) {
       HRegionLocation newHrl = new HRegionLocation(hri, serverName, seqNum);
+      // newHrl.setSecondaryServers(source.getSecondaryServers());
+      // todo. Won't work with secondary replicas.
       synchronized (this.cachedRegionLocations) {
         cacheLocation(hri.getTable(), source, newHrl);
       }

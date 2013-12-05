@@ -22,6 +22,10 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.hbase.util.Addressing;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Data structure to hold HRegionInfo and the address for the hosting
  * HRegionServer.  Immutable.  Comparable, but we compare the 'location' only:
@@ -39,7 +43,11 @@ public class HRegionLocation implements Comparable<HRegionLocation> {
   private String cachedString = null;
   // Cache of the hostname + port
   private String cachedHostnamePort;
+  private List<ServerName> secondaryServers;
 
+  /**
+   * Used in tests only.
+=   */
   public HRegionLocation(HRegionInfo regionInfo, ServerName serverName) {
     this(regionInfo, serverName, HConstants.NO_SEQNUM);
   }
@@ -48,6 +56,18 @@ public class HRegionLocation implements Comparable<HRegionLocation> {
     this.regionInfo = regionInfo;
     this.serverName = serverName;
     this.seqNum = seqNum;
+  }
+
+
+  public List<ServerName> getSecondaryServers() {
+    if (secondaryServers == null) {
+      return Collections.emptyList();
+    }
+    return secondaryServers;
+  }
+
+  public void setSecondaryServers(List<ServerName> secondaryServers) {
+    this.secondaryServers = secondaryServers;
   }
 
   /**
@@ -76,6 +96,7 @@ public class HRegionLocation implements Comparable<HRegionLocation> {
     if (!(o instanceof HRegionLocation)) {
       return false;
     }
+
     return this.compareTo((HRegionLocation)o) == 0;
   }
 

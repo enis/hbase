@@ -6,6 +6,9 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
+import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HRegionLocation;
+import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -28,33 +31,32 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RpcRetryingCallerWithFallBack  {
   static final Log LOG = LogFactory.getLog(RpcRetryingCallerWithFallBack.class);
 
-  protected ExecutorService pool;
+  protected final ExecutorService pool;
 
-  protected HConnection connection;
-  protected Configuration conf;
+  protected final HConnection connection;
+  protected final Configuration conf;
 
   protected final Get get;
 
-  protected TableName tableName;
-  protected long timeBeforeReplicas;
-  protected int replicaCount;
+  protected final TableName tableName;
+  protected final long timeBeforeReplicas;
   /**
    * Timeout for the call including retries
    */
-  private int callTimeout;
+  private final int callTimeout;
   private final int retries;
 
   private final AtomicBoolean finished = new AtomicBoolean(false);
 
-  public RpcRetryingCallerWithFallBack(
-      HConnection connection, final Get get, ExecutorService pool, int replicaCount, int retries, int callTimeout) {
+  public RpcRetryingCallerWithFallBack(TableName tableName,
+      HConnection connection, final Get get, ExecutorService pool, int retries, int callTimeout) {
+    this.tableName = tableName;
     this.connection = connection;
     this.conf = connection.getConfiguration();
     this.get = get;
     this.pool = pool;
     this.retries = retries;
     this.callTimeout = callTimeout;
-    this.replicaCount = replicaCount;
     this.timeBeforeReplicas = 50; // todo: should be configurable
   }
 
@@ -79,24 +81,40 @@ public class RpcRetryingCallerWithFallBack  {
      */
     @Override
     public void prepare(final boolean reload) throws IOException {
-      if (finished.get()){
+      if (finished.get()) {
         throw new DoNotRetryIOException("Operation already finished on another replica");
       }
 
-      // todo: how to get the location of the region?
       this.location = connection.getRegionLocation(tableName, row, reload);
       if (this.location == null) {
         throw new IOException("Failed to find location, tableName=" + tableName +
             ", row=" + Bytes.toString(row) + ", reload=" + reload);
       }
-      setStub(getConnection().getClient(getLocation().getServerName()));
+
+      ServerName dest;
+      if (id == HRegionInfo.REPLICA_ID_PRIMARY) {
+        dest = getLocation().getServerName();
+      } else {
+        List<ServerName> snl = getLocation().getSecondaryServers();
+        if (snl == null || snl.size() < id -1){
+          throw new IOException("No replica of " + id);
+        }
+        dest = snl.get(id - 1);
+      }
+
+      setStub(getConnection().getClient(dest));
     }
 
     @Override
     public Result call() throws Exception {
-      return ProtobufUtil.get(getConnection().getClient(
+      Result r = ProtobufUtil.get(getConnection().getClient(
           getLocation().getServerName()), getHRegionInfo().getRegionName(), get);
-          // todo we should build the object only once
+      // todo we should build the object only once
+
+      if (id != HRegionInfo.REPLICA_ID_PRIMARY) {
+        r.setStale(true);
+      }
+      return r;
     }
   }
 
@@ -138,6 +156,22 @@ public class RpcRetryingCallerWithFallBack  {
    * not global. We continue until all retries are done, or all timeouts are exceeded.
    */
   public synchronized Result call() throws DoNotRetryIOException, InterruptedIOException, RetriesExhaustedException {
+    HRegionLocation location;
+    try {
+      location = connection.getRegionLocation(tableName, get.getRow(), false);
+    } catch (IOException e) {
+      if (e instanceof DoNotRetryIOException) {
+        throw (DoNotRetryIOException) e;
+      } else if (e instanceof RetriesExhaustedException) {
+        throw (RetriesExhaustedException) e;
+      } else {
+        throw new RetriesExhaustedException("Can't get the location", e);
+      }
+    }
+    assert location != null;
+    int replicaCount = location.getSecondaryServers().size();
+
+
     List<Future<Result>> inProgress = new ArrayList<Future<Result>>();
     ReplicaRegionServerCallable mainCall = new ReplicaRegionServerCallable(0);
     RetryingRPC retryingRPC = new RetryingRPC(mainCall);
@@ -149,9 +183,9 @@ public class RpcRetryingCallerWithFallBack  {
 
     boolean done = false;
     try {
-      mainReturn.get(timeBeforeReplicas, TimeUnit.MILLISECONDS);
-      done = true;
+      return mainReturn.get(timeBeforeReplicas, TimeUnit.MILLISECONDS);
     } catch (ExecutionException e) {
+      LOG.info("Error on primary ", e);
       done = true;
       Throwable t = translateException(e);
       RetriesExhaustedException.ThrowableWithExtraContext qt =
@@ -163,6 +197,8 @@ public class RpcRetryingCallerWithFallBack  {
       mainReturn.cancel(true);
       throw new InterruptedIOException();
     }
+
+    LOG.info("Primary is not fast enough. Using the others " + replicaCount + " replicas. done=" + done);
 
     if (!done) {
       inProgress.add(mainReturn);
@@ -186,6 +222,7 @@ public class RpcRetryingCallerWithFallBack  {
               finished.set(true); // We've got a result. Any other call can now stop.
               return r;
             } catch (ExecutionException e) {
+              LOG.info("Caught " + e.getMessage());
               Throwable t = translateException(e);
               RetriesExhaustedException.ThrowableWithExtraContext qt =
                   new RetriesExhaustedException.ThrowableWithExtraContext(t,

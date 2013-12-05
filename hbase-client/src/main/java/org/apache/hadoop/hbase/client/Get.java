@@ -72,6 +72,7 @@ public class Get extends OperationWithAttributes
   private Filter filter = null;
   private TimeRange tr = new TimeRange();
   private boolean checkExistenceOnly = false;
+  private boolean allowStale = false;
   private boolean closestRowBefore = false;
   private Map<byte [], NavigableSet<byte []>> familyMap =
     new TreeMap<byte [], NavigableSet<byte []>>(Bytes.BYTES_COMPARATOR);
@@ -326,6 +327,14 @@ public class Get extends OperationWithAttributes
    */
   public Map<byte[],NavigableSet<byte[]>> getFamilyMap() {
     return this.familyMap;
+  }
+
+  public boolean isAllowStale() {
+    return allowStale;
+  }
+
+  public void setAllowStale(boolean allowStale) {
+    this.allowStale = allowStale;
   }
 
   /**

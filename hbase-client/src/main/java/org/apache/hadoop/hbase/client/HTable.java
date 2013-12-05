@@ -746,9 +746,7 @@ public class HTable implements HTableInterface {
    */
   @Override
   public Result get(final Get get) throws IOException {
-    int replicaCount =  getTableDescriptor().getNumRegionReplicas(); // todo: how expensive is this?
-
-    if (replicaCount == 0){
+    if (!get.isAllowStale()) {
       // Good old call.
       RegionServerCallable<Result> callable = new RegionServerCallable<Result>(this.connection,
           getName(), get.getRow()) {
@@ -756,7 +754,7 @@ public class HTable implements HTableInterface {
           return ProtobufUtil.get(getStub(), getLocation().getRegionInfo().getRegionName(), get);
         }
       };
-      return rpcCallerFactory.<Result> newCaller().callWithRetries(callable, this.operationTimeout);
+      return rpcCallerFactory.<Result>newCaller().callWithRetries(callable, this.operationTimeout);
     }
 
     // Call that takes into account the replica
@@ -767,8 +765,8 @@ public class HTable implements HTableInterface {
         HConstants.HBASE_CLIENT_OPERATION_TIMEOUT,
         HConstants.DEFAULT_HBASE_CLIENT_OPERATION_TIMEOUT);
 
-    RpcRetryingCallerWithFallBack callable =
-        new RpcRetryingCallerWithFallBack(this.connection, get, pool, replicaCount, retries, callTimeout);
+    RpcRetryingCallerWithFallBack callable = new RpcRetryingCallerWithFallBack(
+        tableName, this.connection, get, pool, retries, callTimeout);
     return callable.call();
   }
 
