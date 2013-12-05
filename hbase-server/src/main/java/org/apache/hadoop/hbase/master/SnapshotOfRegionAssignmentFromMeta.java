@@ -41,7 +41,6 @@ import org.apache.hadoop.hbase.catalog.MetaReader.Visitor;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.master.balancer.FavoredNodeAssignmentHelper;
 import org.apache.hadoop.hbase.master.balancer.FavoredNodesPlan;
-import org.apache.hadoop.hbase.util.Pair;
 
 /**
  * Used internally for reading meta and constructing datastructures that are
@@ -100,9 +99,7 @@ public class SnapshotOfRegionAssignmentFromMeta {
       public boolean visit(Result result) throws IOException {
         try {
           if (result ==  null || result.isEmpty()) return true;
-          Pair<HRegionInfo, ServerName> regionAndServer =
-              HRegionInfo.getHRegionInfoAndServerName(result);
-          HRegionInfo hri = regionAndServer.getFirst();
+          HRegionInfo hri = HRegionInfo.getHRegionInfo(result);
           if (hri == null) return true;
           if (hri.getTable() == null) return true;
           if (disabledTables.contains(hri.getTable())) {
@@ -110,10 +107,14 @@ public class SnapshotOfRegionAssignmentFromMeta {
           }
           // Are we to include split parents in the list?
           if (excludeOfflinedSplitParents && hri.isSplit()) return true;
-          // Add the current assignment to the snapshot
-          addAssignment(hri, regionAndServer.getSecond());
-          addRegion(hri);
-          
+          ServerName[] servers = HRegionInfo.getServerNamesFromMetaRowResult(result);
+
+          // Add the current assignment to the snapshot for all replicas
+          for (int i = 0; i < servers.length; i++) {
+            hri = hri.getRegionInfoForReplica(i);
+            addAssignment(hri, servers[i]);
+            addRegion(hri);
+          }
           // the code below is to handle favored nodes
           byte[] favoredNodes = result.getValue(HConstants.CATALOG_FAMILY,
               FavoredNodeAssignmentHelper.FAVOREDNODES_QUALIFIER);

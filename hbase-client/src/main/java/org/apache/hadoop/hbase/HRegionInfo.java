@@ -1080,6 +1080,24 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     return new Pair<HRegionInfo, ServerName>(info, sn);
   }
 
+  public static ServerName[] getServerNamesFromMetaRowResult(final Result r) {
+    int replicaId = 0;
+    ServerName sn = getServerName(r, replicaId);
+    if (sn == null) return null;
+    int replicaCount = 1;
+    ServerName[] servers = new ServerName[replicaCount];
+    while(sn != null) {
+      if (replicaId == replicaCount) {
+        ServerName[] tempServers = new ServerName[replicaCount += 1];
+        System.arraycopy(servers, 0, tempServers, 0, servers.length);
+        servers = tempServers;
+      }
+      servers[replicaId++] = sn;
+      sn = getServerName(r, replicaId);
+    }
+    return servers;
+  }
+
   /**
    * Returns HRegionInfo object from the column
    * HConstants.CATALOG_FAMILY:HConstants.REGIONINFO_QUALIFIER of the catalog

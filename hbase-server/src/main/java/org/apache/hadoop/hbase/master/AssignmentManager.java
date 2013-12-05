@@ -2625,62 +2625,67 @@ public class AssignmentManager extends ZooKeeperListener {
       new TreeMap<ServerName, List<HRegionInfo>>();
     // Iterate regions in META
     for (Result result : results) {
-      Pair<HRegionInfo, ServerName> region = HRegionInfo.getHRegionInfoAndServerName(result);
-      if (region == null) continue;
-      HRegionInfo regionInfo = region.getFirst();
-      ServerName regionLocation = region.getSecond();
+      //Pair<HRegionInfo, ServerName> region = HRegionInfo.getHRegionInfoAndServerName(result);
+      HRegionInfo regionInfo = HRegionInfo.getHRegionInfo(result);
       if (regionInfo == null) continue;
-      regionStates.createRegionState(regionInfo);
-      if (regionStates.isRegionInState(regionInfo, State.SPLIT)) {
-        // Split is considered to be completed. If the split znode still
-        // exists, the region will be put back to SPLITTING state later
-        LOG.debug("Region " + regionInfo.getRegionNameAsString()
-           + " split is completed. Hence need not add to regions list");
-        continue;
-      }
-      TableName tableName = regionInfo.getTable();
-      if (regionLocation == null) {
-        // regionLocation could be null if createTable didn't finish properly.
-        // When createTable is in progress, HMaster restarts.
-        // Some regions have been added to hbase:meta, but have not been assigned.
-        // When this happens, the region's table must be in ENABLING state.
-        // It can't be in ENABLED state as that is set when all regions are
-        // assigned.
-        // It can't be in DISABLING state, because DISABLING state transitions
-        // from ENABLED state when application calls disableTable.
-        // It can't be in DISABLED state, because DISABLED states transitions
-        // from DISABLING state.
-        if (!enablingTables.contains(tableName)) {
-          LOG.warn("Region " + regionInfo.getEncodedName() +
-            " has null regionLocation." + " But its table " + tableName +
-            " isn't in ENABLING state.");
+      ServerName[] servers = HRegionInfo.getServerNamesFromMetaRowResult(result);
+      if (servers == null) continue;
+      int replicaId = 0;
+      // Do the operations for all the replicas
+      for (ServerName regionLocation : servers) {
+        regionInfo = regionInfo.getRegionInfoForReplica(replicaId++);
+        regionStates.createRegionState(regionInfo);
+        if (regionStates.isRegionInState(regionInfo, State.SPLIT)) {
+          // Split is considered to be completed. If the split znode still
+          // exists, the region will be put back to SPLITTING state later
+          LOG.debug("Region " + regionInfo.getRegionNameAsString()
+              + " split is completed. Hence need not add to regions list");
+          continue;
         }
-      } else if (!onlineServers.contains(regionLocation)) {
-        // Region is located on a server that isn't online
-        List<HRegionInfo> offlineRegions = offlineServers.get(regionLocation);
-        if (offlineRegions == null) {
-          offlineRegions = new ArrayList<HRegionInfo>(1);
-          offlineServers.put(regionLocation, offlineRegions);
-        }
-        offlineRegions.add(regionInfo);
-        // need to enable the table if not disabled or disabling or enabling
-        // this will be used in rolling restarts
-        if (!disabledOrDisablingOrEnabling.contains(tableName)
-            && !getZKTable().isEnabledTable(tableName)) {
-          setEnabledTable(tableName);
-        }
-      } else {
-        // Region is being served and on an active server
-        // add only if region not in disabled or enabling table
-        if (!disabledOrEnablingTables.contains(tableName)) {
-          regionStates.updateRegionState(regionInfo, State.OPEN, regionLocation);
-          regionStates.regionOnline(regionInfo, regionLocation);
-        }
-        // need to enable the table if not disabled or disabling or enabling
-        // this will be used in rolling restarts
-        if (!disabledOrDisablingOrEnabling.contains(tableName)
-            && !getZKTable().isEnabledTable(tableName)) {
-          setEnabledTable(tableName);
+        TableName tableName = regionInfo.getTable();
+        if (regionLocation == null) {
+          // regionLocation could be null if createTable didn't finish properly.
+          // When createTable is in progress, HMaster restarts.
+          // Some regions have been added to hbase:meta, but have not been assigned.
+          // When this happens, the region's table must be in ENABLING state.
+          // It can't be in ENABLED state as that is set when all regions are
+          // assigned.
+          // It can't be in DISABLING state, because DISABLING state transitions
+          // from ENABLED state when application calls disableTable.
+          // It can't be in DISABLED state, because DISABLED states transitions
+          // from DISABLING state.
+          if (!enablingTables.contains(tableName)) {
+            LOG.warn("Region " + regionInfo.getEncodedName() +
+                " has null regionLocation." + " But its table " + tableName +
+                " isn't in ENABLING state.");
+          }
+        } else if (!onlineServers.contains(regionLocation)) {
+          // Region is located on a server that isn't online
+          List<HRegionInfo> offlineRegions = offlineServers.get(regionLocation);
+          if (offlineRegions == null) {
+            offlineRegions = new ArrayList<HRegionInfo>(1);
+            offlineServers.put(regionLocation, offlineRegions);
+          }
+          offlineRegions.add(regionInfo);
+          // need to enable the table if not disabled or disabling or enabling
+          // this will be used in rolling restarts
+          if (!disabledOrDisablingOrEnabling.contains(tableName)
+              && !getZKTable().isEnabledTable(tableName)) {
+            setEnabledTable(tableName);
+          }
+        } else {
+          // Region is being served and on an active server
+          // add only if region not in disabled or enabling table
+          if (!disabledOrEnablingTables.contains(tableName)) {
+            regionStates.updateRegionState(regionInfo, State.OPEN, regionLocation);
+            regionStates.regionOnline(regionInfo, regionLocation);
+          }
+          // need to enable the table if not disabled or disabling or enabling
+          // this will be used in rolling restarts
+          if (!disabledOrDisablingOrEnabling.contains(tableName)
+              && !getZKTable().isEnabledTable(tableName)) {
+            setEnabledTable(tableName);
+          }
         }
       }
     }
