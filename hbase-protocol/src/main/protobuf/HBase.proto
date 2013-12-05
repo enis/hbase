@@ -42,7 +42,6 @@ message TableSchema {
   repeated BytesBytesPair attributes = 2;
   repeated ColumnFamilySchema column_families = 3;
   repeated NameStringPair configuration = 4;
-  optional int32 numReplicas = 5 [default = 1];
 }
 
 /**

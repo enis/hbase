@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -186,6 +187,8 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * <em>INTERNAL</em> number of region replicas for the table.
    */
   public static final String NUM_REGION_REPLICAS = "REPLICA";
+  private static final ImmutableBytesWritable NUM_REGION_REPLICAS_KEY =
+      new ImmutableBytesWritable(Bytes.toBytes("REPLICA"));
 
   /** Default durability for HTD is USE_DEFAULT, which defaults to HBase-global default value */
   private static final Durability DEFAULT_DURABLITY = Durability.USE_DEFAULT;
@@ -261,12 +264,6 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    */
   private final Map<byte [], HColumnDescriptor> families =
     new TreeMap<byte [], HColumnDescriptor>(Bytes.BYTES_RAWCOMPARATOR);
-
-  /**
-   * The number of replicas per region
-   */
-  //TODO: should this be a key/value in the table CONFIGURATION
-  private int numRegionReplicas = 1;
 
   /**
    * <em> INTERNAL </em> Private constructor used internally creating table descriptors for
@@ -1108,11 +1105,14 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * Returns the configured replicas per region 
    */
   public int getNumRegionReplicas() {
-    return numRegionReplicas;
+    return Integer.parseInt(new String(getValue(NUM_REGION_REPLICAS_KEY), Charset.forName("UTF-8")));
   }
 
   public void setNumRegionReplicas(int numRegionReplicas) {
-    this.numRegionReplicas = numRegionReplicas;
+    // complex setvalue to keep toString on immutablebytes happy
+    setValue(NUM_REGION_REPLICAS_KEY,
+        new ImmutableBytesWritable(Integer.toString(numRegionReplicas)
+            .getBytes(Charset.forName("UTF-8"))));
   }
 
   /**
@@ -1473,7 +1473,6 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
       aBuilder.setValue(e.getValue());
       builder.addConfiguration(aBuilder.build());
     }
-    builder.setNumReplicas(getNumRegionReplicas());
     return builder.build();
   }
 
@@ -1497,7 +1496,6 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
     for (NameStringPair a: ts.getConfigurationList()) {
       htd.setConfiguration(a.getName(), a.getValue());
     }
-    htd.numRegionReplicas = ts.getNumReplicas();
     return htd;
   }
 
