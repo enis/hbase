@@ -444,7 +444,11 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     byte[] replicaIdBytes = null;
     if (replicaId > 0) {
       // use string representation for replica id
-      replicaIdBytes = Bytes.toBytes(REPLICA_ID_FORMAT.format(replicaId));
+      NumberFormat form = NumberFormat.getInstance();
+      form.setMinimumIntegerDigits(5); // 100K replicas
+      form.setGroupingUsed(false);
+
+      replicaIdBytes = Bytes.toBytes(form.format(replicaId));
       len += 1 + replicaIdBytes.length;
     }
 
@@ -1190,24 +1194,17 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    * @return the secondary region name, null if there are none.
    */
   public static List<ServerName> getSecondaryServers(final Result result) {
-    int replicaId = 1;
     List<ServerName> snl = null;
 
-    for (; ; ) {
-      byte[] res =
-          result.getValue(HConstants.CATALOG_FAMILY, MetaReader.getServerColumn(replicaId));
-      if (res == null) {
+    for (int replicaId = 1; ; replicaId++) {
+      ServerName sn = getServerName(result, replicaId);
+      if (sn == null) {
         return snl;
       }
       if (snl == null) {
         snl = new ArrayList<ServerName>();
       }
-      try {
-        snl.add(ServerName.parseFrom(res));
-      } catch (DeserializationException e) {
-        LOG.error("Can't parse the server name for a replica - continuing, " +
-            "but this replica won't be available for this client", e);
-      }
+      snl.add(sn);
     }
   }
 

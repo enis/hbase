@@ -19,8 +19,10 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -28,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class RpcRetryingCallerWithFallBack  {
+public class RpcRetryingCallerWithFallBack {
   static final Log LOG = LogFactory.getLog(RpcRetryingCallerWithFallBack.class);
 
   protected final ExecutorService pool;
@@ -49,7 +51,7 @@ public class RpcRetryingCallerWithFallBack  {
   private final AtomicBoolean finished = new AtomicBoolean(false);
 
   public RpcRetryingCallerWithFallBack(TableName tableName,
-      HConnection connection, final Get get, ExecutorService pool, int retries, int callTimeout) {
+                                       HConnection connection, final Get get, ExecutorService pool, int retries, int callTimeout) {
     this.tableName = tableName;
     this.connection = connection;
     this.conf = connection.getConfiguration();
@@ -62,12 +64,12 @@ public class RpcRetryingCallerWithFallBack  {
 
   /**
    * Takes into account the replicas, i.e.
-   *  - the call can be on any replica
-   *  - we need to stop retrying when the call is completed
-   *  - todo: we need to cancel the call in progress.
+   * - the call can be on any replica
+   * - we need to stop retrying when the call is completed
+   * - todo: we need to cancel the call in progress.
    */
   class ReplicaRegionServerCallable extends RegionServerCallable<Result> {
-    int id;
+    final int id;
 
     public ReplicaRegionServerCallable(int id) {
       super(connection, tableName, get.getRow());
@@ -76,8 +78,8 @@ public class RpcRetryingCallerWithFallBack  {
 
     /**
      * Two responsibilities
-     *  - if the call is already completed (by another replica) stops the retries.
-     *  - set the location to the right region, depending on the replica.
+     * - if the call is already completed (by another replica) stops the retries.
+     * - set the location to the right region, depending on the replica.
      */
     @Override
     public void prepare(final boolean reload) throws IOException {
@@ -85,7 +87,7 @@ public class RpcRetryingCallerWithFallBack  {
         throw new DoNotRetryIOException("Operation already finished on another replica");
       }
 
-      this.location = connection.getRegionLocation(tableName, row, reload);
+      this.location = connection.getRegionLocation(tableName, row, true);
       if (this.location == null) {
         throw new IOException("Failed to find location, tableName=" + tableName +
             ", row=" + Bytes.toString(row) + ", reload=" + reload);
@@ -96,7 +98,7 @@ public class RpcRetryingCallerWithFallBack  {
         dest = getLocation().getServerName();
       } else {
         List<ServerName> snl = getLocation().getSecondaryServers();
-        if (snl == null || snl.size() < id -1){
+        if (snl == null || snl.size() < id - 1) {
           throw new IOException("No replica of " + id);
         }
         dest = snl.get(id - 1);
@@ -108,8 +110,9 @@ public class RpcRetryingCallerWithFallBack  {
     @Override
     public Result call() throws Exception {
       Result r = ProtobufUtil.get(getConnection().getClient(
-          getLocation().getServerName()), getHRegionInfo().getRegionName(), get);
-      // todo we should build the object only once
+          getLocation().getServerName()), getHRegionInfo().getRegionInfoForReplica(id).getRegionName(), get);
+      // todo we should build the object only once, but we can't right now as the probufUtils wants
+      //  the destination server.
 
       if (id != HRegionInfo.REPLICA_ID_PRIMARY) {
         r.setStale(true);
@@ -158,6 +161,7 @@ public class RpcRetryingCallerWithFallBack  {
   public synchronized Result call() throws DoNotRetryIOException, InterruptedIOException, RetriesExhaustedException {
     HRegionLocation location;
     try {
+      connection.clearRegionCache(); // todo
       location = connection.getRegionLocation(tableName, get.getRow(), false);
     } catch (IOException e) {
       if (e instanceof DoNotRetryIOException) {
@@ -169,11 +173,11 @@ public class RpcRetryingCallerWithFallBack  {
       }
     }
     assert location != null;
-    int replicaCount = location.getSecondaryServers().size();
+    int secondaryReplicaCount = location.getSecondaryServers().size();
 
 
     List<Future<Result>> inProgress = new ArrayList<Future<Result>>();
-    ReplicaRegionServerCallable mainCall = new ReplicaRegionServerCallable(0);
+    ReplicaRegionServerCallable mainCall = new ReplicaRegionServerCallable(HRegionInfo.REPLICA_ID_PRIMARY);
     RetryingRPC retryingRPC = new RetryingRPC(mainCall);
 
     List<RetriesExhaustedException.ThrowableWithExtraContext> exceptions =
@@ -198,49 +202,58 @@ public class RpcRetryingCallerWithFallBack  {
       throw new InterruptedIOException();
     }
 
-    LOG.info("Primary is not fast enough. Using the others " + replicaCount + " replicas. done=" + done);
+    LOG.info("Primary is not fast enough. Using one of the  " + secondaryReplicaCount + " secondary replicas. done=" + done);
 
     if (!done) {
       inProgress.add(mainReturn);
-      for (int i = 1; i <= replicaCount; i++) {
+      for (int i = 1; i <= secondaryReplicaCount; i++) {
         ReplicaRegionServerCallable callOnReplica = new ReplicaRegionServerCallable(i);
         RetryingRPC retryingOnReplica = new RetryingRPC(callOnReplica);
         inProgress.add(pool.submit(retryingOnReplica));
       }
     }
 
-    while (!inProgress.isEmpty()) {
-      try {
-        synchronized (finished) {
-          finished.wait(100);
-        }
-        // If one of the task succeeded we return the result. If not, we continue.
-        for (Future<Result> task : inProgress) {
-          if (task.isDone()) {
-            try {
-              Result r = task.get();
-              finished.set(true); // We've got a result. Any other call can now stop.
-              return r;
-            } catch (ExecutionException e) {
-              LOG.info("Caught " + e.getMessage());
-              Throwable t = translateException(e);
-              RetriesExhaustedException.ThrowableWithExtraContext qt =
-                  new RetriesExhaustedException.ThrowableWithExtraContext(t,
-                      EnvironmentEdgeManager.currentTimeMillis(), toString());
-              exceptions.add(qt);
-              inProgress.remove(task);
+    try {
+      while (!inProgress.isEmpty()) {
+        try {
+          synchronized (finished) {
+            finished.wait(100);
+          }
+          // If one of the task succeeded we return the result. If not, we continue.
+          Iterator<Future<Result>> it = inProgress.iterator();
+          while (it.hasNext()) {
+            Future<Result> task = it.next();
+            if (task.isDone()) {
+              it.remove();
+              if (!task.isCancelled()) {
+                try {
+                  Result r = task.get();
+                  finished.set(true); // We've got a result. Any other call can now stop.
+                  return r;
+                } catch (ExecutionException e) {
+                  LOG.info("Caught " + e.getMessage());
+                  Throwable t = translateException(e);
+                  RetriesExhaustedException.ThrowableWithExtraContext qt =
+                      new RetriesExhaustedException.ThrowableWithExtraContext(t,
+                          EnvironmentEdgeManager.currentTimeMillis(), toString());
+                  exceptions.add(qt);
+                } catch (CancellationException ignored) {
+                  // race condition: the task get cancelled before
+                }
+              }
               break;
             }
           }
-        }
-      } catch (InterruptedException e) {
-        throw new InterruptedIOException();
-      } finally {
-        for (Future<Result> task : inProgress) {
-          task.cancel(true);
+        } catch (InterruptedException e) {
+          throw new InterruptedIOException();
         }
       }
+    } finally {
+      for (Future<Result> task : inProgress) {
+        task.cancel(true);
+      }
     }
+
 
     // if we're here, it means all attempts failed.
     throw new RetriesExhaustedException(retries, exceptions);

@@ -1164,7 +1164,7 @@ public class HConnectionManager {
             } else {
               // If we are not supposed to be using the cache, delete any existing cached location
               // so it won't interfere.
-              forceDeleteCachedLocation(tableName, row);
+              // forceDeleteCachedLocation(tableName, row);
             }
             // Query the meta region for the location of the meta region
             regionInfoRow = ProtobufUtil.getRowOrBefore(service,
