@@ -545,8 +545,12 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     }
     //for this round of roundRobinAssignment, how many racks are we talking about (TODO: need to access
     //the rackManager via the master or something)
-    int uniqueRacks = rackManager == null ? 1 : rackManager.getRack(servers).size();
-    
+    int uniqueRacks = 1;
+    if (rackManager != null) {
+      List<String> racks = rackManager.getRack(servers);
+      Set<String> rackSet = new HashSet<String>(racks);
+      uniqueRacks = rackSet.size();
+    }
     int numRegions = regions.size();
     int numServers = servers.size();
     int max = (int) Math.ceil((float) numRegions / numServers);
@@ -567,11 +571,11 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         } else {
           serverRegions.add(region);
         }
+        // also update the assignments for checking availability
+        updateLocalityCheckerMaps(serverRegions, server, currentAssignments.getFirst(),
+            currentAssignments.getSecond());
       }
       assignments.put(server, serverRegions);
-      // also update the assignments for checking availability
-      updateLocalityCheckerMaps(serverRegions, server, currentAssignments.getFirst(),
-          currentAssignments.getSecond());
       regionIdx++;
     }
     // assign the unassigned regions by going through the list and doing straight
@@ -580,7 +584,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     underReplicatedRegions.addAll(unassignedRegions);
     for (HRegionInfo hri : unassignedRegions) {
       for (int j = 0; j < numServers; j++) {
-        if (wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
+        if (!wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
             uniqueRacks, servers.get(j), hri)) {
           List<HRegionInfo> hris = assignments.get(servers.get(j));
           if (hris == null) {
@@ -633,14 +637,20 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       hris = new ArrayList<HRegionInfo>();
       serverToRegions.put(server, hris);
     }
-    hris.addAll(serverRegions);
+    // add the primary regions - since for the comparisons in wouldLowerAvailability
+    // we use the primary regioninfo
+    for (HRegionInfo hri : serverRegions) {
+      hris.add(hri.getPrimaryRegionInfo());
+    }
     if (rackManager != null) {
       hris = rackToRegions.get(rackManager.getRack(server));
       if (hris == null) {
         hris = new ArrayList<HRegionInfo>();
         rackToRegions.put(rackManager.getRack(server), hris);
       }
-      hris.addAll(serverRegions);
+      for (HRegionInfo hri : serverRegions) {
+        hris.add(hri.getPrimaryRegionInfo());
+      }
     }
   }
 

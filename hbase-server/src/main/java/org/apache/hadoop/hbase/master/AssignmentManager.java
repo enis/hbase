@@ -2628,7 +2628,7 @@ public class AssignmentManager extends ZooKeeperListener {
       //Pair<HRegionInfo, ServerName> region = HRegionInfo.getHRegionInfoAndServerName(result);
       HRegionInfo regionInfo = HRegionInfo.getHRegionInfo(result);
       if (regionInfo == null) continue;
-      ServerName[] servers = HRegionInfo.getServerNamesFromMetaRowResult(result);
+      ServerName[] servers = HRegionInfo.getServerNamesFromMetaRowResult(result).getSecond();
       if (servers == null) continue;
       int replicaId = 0;
       // Do the operations for all the replicas

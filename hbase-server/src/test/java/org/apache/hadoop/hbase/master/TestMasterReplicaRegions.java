@@ -18,7 +18,10 @@
  */
 package org.apache.hadoop.hbase.master;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -27,11 +30,14 @@ import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.CatalogTracker;
 import org.apache.hadoop.hbase.catalog.MetaReader;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Pair;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -40,13 +46,17 @@ public class TestMasterReplicaRegions {
   final static Log LOG = LogFactory.getLog(TestRegionPlacement.class);
   private final static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static HBaseAdmin admin;
+  private static int numSlaves = 2;
 
   @BeforeClass
   public static void setupBeforeClass() throws Exception {
     Configuration conf = TEST_UTIL.getConfiguration();
     conf.setBoolean("hbase.tests.use.shortcircuit.reads", false);
-    TEST_UTIL.startMiniCluster(1);
+    TEST_UTIL.startMiniCluster(numSlaves);
     admin = new HBaseAdmin(conf);
+    while(admin.getClusterStatus().getServers().size() != numSlaves) {
+      Thread.sleep(100);
+    }
   }
 
   @AfterClass
@@ -75,6 +85,37 @@ public class TestMasterReplicaRegions {
             .getRegionStates().getRegionState(replica);
         assert (state != null);
       }
+    }
+    TEST_UTIL.waitTableEnabled(table.getName());
+    List<Result> metaRows = MetaReader.fullScan(ct);
+    int numRows = 0;
+    for (Result result : metaRows) {
+      Pair<HRegionInfo, ServerName[]> pair = HRegionInfo.getServerNamesFromMetaRowResult(result);
+      HRegionInfo hri = pair.getFirst();
+      if (!hri.getTable().equals(table)) continue;
+      numRows += 1;
+      ServerName[] servers = pair.getSecond();
+      // have two locations for the replicas of a region, and the locations should be different
+      assert(servers.length == 2);
+      assert(!servers[0].equals(servers[1]));
+    }
+    assert(numRows == numRegions);
+    
+    // The same verification of the meta as above but with the SnapshotOfRegionAssignmentFromMeta
+    // class
+    SnapshotOfRegionAssignmentFromMeta snapshot = new SnapshotOfRegionAssignmentFromMeta(ct);
+    snapshot.initialize();
+    Map<HRegionInfo, ServerName> regionToServerMap = snapshot.getRegionToRegionServerMap();
+    assert(regionToServerMap.size() == numRegions * numReplica + 1); //'1' for the namespace
+    Map<ServerName, List<HRegionInfo>> serverToRegionMap = snapshot.getRegionServerToRegionMap();
+    for (Map.Entry<ServerName, List<HRegionInfo>> entry : serverToRegionMap.entrySet()) {
+      List<HRegionInfo> regions = entry.getValue();
+      Set<byte[]> setOfStartKeys = new HashSet<byte[]>();
+      for (HRegionInfo region : regions) {
+        byte[] startKey = region.getStartKey();
+        if (region.getTable().equals(table)) setOfStartKeys.add(startKey); //ignore namespace reg
+      }
+      assert(setOfStartKeys.size() == numRegions);
     }
   }
 }

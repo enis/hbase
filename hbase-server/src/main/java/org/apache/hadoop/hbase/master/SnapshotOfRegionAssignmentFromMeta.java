@@ -41,6 +41,7 @@ import org.apache.hadoop.hbase.catalog.MetaReader.Visitor;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.master.balancer.FavoredNodeAssignmentHelper;
 import org.apache.hadoop.hbase.master.balancer.FavoredNodesPlan;
+import org.apache.hadoop.hbase.util.Pair;
 
 /**
  * Used internally for reading meta and constructing datastructures that are
@@ -107,7 +108,9 @@ public class SnapshotOfRegionAssignmentFromMeta {
           }
           // Are we to include split parents in the list?
           if (excludeOfflinedSplitParents && hri.isSplit()) return true;
-          ServerName[] servers = HRegionInfo.getServerNamesFromMetaRowResult(result);
+          Pair<HRegionInfo,ServerName[]> pair =
+              HRegionInfo.getServerNamesFromMetaRowResult(result);
+          ServerName[] servers = pair.getSecond();
 
           // Add the current assignment to the snapshot for all replicas
           for (int i = 0; i < servers.length; i++) {

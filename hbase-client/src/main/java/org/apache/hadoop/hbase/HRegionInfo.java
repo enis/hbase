@@ -1080,22 +1080,22 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
     return new Pair<HRegionInfo, ServerName>(info, sn);
   }
 
-  public static ServerName[] getServerNamesFromMetaRowResult(final Result r) {
+  public static Pair<HRegionInfo,ServerName[]> getServerNamesFromMetaRowResult(final Result r) {
+    HRegionInfo info =
+        getHRegionInfo(r, HConstants.REGIONINFO_QUALIFIER);
     int replicaId = 0;
-    ServerName sn = getServerName(r, replicaId);
-    if (sn == null) return null;
-    int replicaCount = 1;
-    ServerName[] servers = new ServerName[replicaCount];
-    while(sn != null) {
-      if (replicaId == replicaCount) {
-        ServerName[] tempServers = new ServerName[replicaCount += 1];
-        System.arraycopy(servers, 0, tempServers, 0, servers.length);
+    ServerName[] servers = null;
+    ServerName sn = getServerName(r, 0);
+    if (sn != null) {
+      while(sn != null) {
+        ServerName[] tempServers = new ServerName[replicaId + 1];
+        if (servers != null) System.arraycopy(servers, 0, tempServers, 0, servers.length);
         servers = tempServers;
+        servers[replicaId] = sn;
+        sn = getServerName(r, ++replicaId);
       }
-      servers[replicaId++] = sn;
-      sn = getServerName(r, replicaId);
     }
-    return servers;
+    return new Pair<HRegionInfo, ServerName[]>(info, servers);
   }
 
   /**
