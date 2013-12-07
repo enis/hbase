@@ -21,7 +21,6 @@ package org.apache.hadoop.hbase;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -186,9 +185,9 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
   /**
    * <em>INTERNAL</em> number of region replicas for the table.
    */
-  public static final String NUM_REGION_REPLICAS = "REPLICA";
-  private static final ImmutableBytesWritable NUM_REGION_REPLICAS_KEY =
-      new ImmutableBytesWritable(Bytes.toBytes("REPLICA"));
+  public static final String REGION_REPLICATION = "REGION_REPLICATION";
+  private static final ImmutableBytesWritable REGION_REPLICATION_KEY =
+      new ImmutableBytesWritable(Bytes.toBytes(REGION_REPLICATION));
 
   /** Default durability for HTD is USE_DEFAULT, which defaults to HBase-global default value */
   private static final Durability DEFAULT_DURABLITY = Durability.USE_DEFAULT;
@@ -222,7 +221,7 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    */
   public static final long DEFAULT_MEMSTORE_FLUSH_SIZE = 1024*1024*128L;
 
-  public static final int DEFAULT_NUM_REGION_REPLICAS = 1;
+  public static final int DEFAULT_REGION_REPLICATION = 1;
 
   private final static Map<String, String> DEFAULT_VALUES
     = new HashMap<String, String>();
@@ -237,7 +236,7 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
     DEFAULT_VALUES.put(DEFERRED_LOG_FLUSH,
         String.valueOf(DEFAULT_DEFERRED_LOG_FLUSH));
     DEFAULT_VALUES.put(DURABILITY, DEFAULT_DURABLITY.name()); //use the enum name
-    DEFAULT_VALUES.put(NUM_REGION_REPLICAS, String.valueOf(DEFAULT_NUM_REGION_REPLICAS));
+    DEFAULT_VALUES.put(REGION_REPLICATION, String.valueOf(DEFAULT_REGION_REPLICATION));
     for (String s : DEFAULT_VALUES.keySet()) {
       RESERVED_KEYWORDS.add(new ImmutableBytesWritable(Bytes.toBytes(s)));
     }
@@ -1102,18 +1101,23 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
   }
 
   /**
-   * Returns the configured replicas per region 
+   * Returns the configured replicas per region
    */
-  public int getNumRegionReplicas() {
-    if (getValue(NUM_REGION_REPLICAS_KEY) == null) return 1;
-    return Integer.parseInt(new String(getValue(NUM_REGION_REPLICAS_KEY), Charset.forName("UTF-8")));
+  public int getRegionReplication() {
+    byte[] val = getValue(REGION_REPLICATION_KEY);
+    if (val == null || val.length == 0) {
+      return DEFAULT_REGION_REPLICATION;
+    }
+    return Integer.parseInt(Bytes.toString(val));
   }
 
-  public void setNumRegionReplicas(int numRegionReplicas) {
-    // complex setvalue to keep toString on immutablebytes happy
-    setValue(NUM_REGION_REPLICAS_KEY,
-        new ImmutableBytesWritable(Integer.toString(numRegionReplicas)
-            .getBytes(Charset.forName("UTF-8"))));
+  /**
+   * Sets the number of replicas per region.
+   * @param regionReplication the replication factor per region
+   */
+  public void setRegionReplication(int regionReplication) {
+    setValue(REGION_REPLICATION_KEY,
+        new ImmutableBytesWritable(Bytes.toBytes(Integer.toString(regionReplication))));
   }
 
   /**

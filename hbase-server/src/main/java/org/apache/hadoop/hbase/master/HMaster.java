@@ -1784,7 +1784,7 @@ MasterServices, Server {
   private HRegionInfo[] getHRegionInfos(HTableDescriptor hTableDescriptor,
     byte[][] splitKeys) {
     HRegionInfo[] hRegionInfos = null;
-    int numRegionReplicas = hTableDescriptor.getNumRegionReplicas();
+    int numRegionReplicas = hTableDescriptor.getRegionReplication();
     if (numRegionReplicas <= 0) {
       LOG.warn("Invalid number of replicas per region in the table descriptor. Setting it to 1.");
       numRegionReplicas = 1;

@@ -72,7 +72,7 @@ public class TestMasterReplicaRegions {
     final int numRegions = 3;
     final int numReplica = 2;
     HTableDescriptor desc = new HTableDescriptor(table);
-    desc.setNumRegionReplicas(numReplica);
+    desc.setRegionReplication(numReplica);
     desc.addFamily(new HColumnDescriptor("family"));
     admin.createTable(desc, Bytes.toBytes("A"), Bytes.toBytes("Z"), numRegions);
     assert(admin.tableExists(table));
