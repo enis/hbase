@@ -532,25 +532,9 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     // Get the snapshot of the current assignments for the regions in question, and then create
     // a cluster out of it. Note that we might have replicas already assigned to some servers
     // earlier. So we want to get the snapshot to see those assignments.
-    Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>> currentAssignments;
-    if (this.services != null) {
-      currentAssignments = this.services.getAssignmentManager().getSnapShotOfAssignment(regions);
-    } else { //create empty datastructures .. lot of code.
-      currentAssignments = new Pair<Map<ServerName, List<HRegionInfo>>,
-          Map<String, List<HRegionInfo>>>();
-      Map<ServerName, List<HRegionInfo>> a = new HashMap<ServerName, List<HRegionInfo>>(0);
-      Map<String, List<HRegionInfo>> b = new HashMap<String, List<HRegionInfo>>(0);
-      currentAssignments.setFirst(a);
-      currentAssignments.setSecond(b);
-    }
-    //for this round of roundRobinAssignment, how many racks are we talking about (TODO: need to access
-    //the rackManager via the master or something)
-    int uniqueRacks = 1;
-    if (rackManager != null) {
-      List<String> racks = rackManager.getRack(servers);
-      Set<String> rackSet = new HashSet<String>(racks);
-      uniqueRacks = rackSet.size();
-    }
+    Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>> currentAssignments =
+      getCurrentAssignmentSnapshot(servers, regions);
+    int uniqueRacks = getUniqueRacks(servers);
     int numRegions = regions.size();
     int numServers = servers.size();
     int max = (int) Math.ceil((float) numRegions / numServers);
@@ -572,7 +556,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
           serverRegions.add(region);
         }
         // also update the assignments for checking availability
-        updateLocalityCheckerMaps(serverRegions, server, currentAssignments.getFirst(),
+        updateAvailabilityCheckerMaps(serverRegions, server, currentAssignments.getFirst(),
             currentAssignments.getSecond());
       }
       assignments.put(server, serverRegions);
@@ -583,6 +567,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     List<HRegionInfo> underReplicatedRegions = new ArrayList<HRegionInfo>();
     underReplicatedRegions.addAll(unassignedRegions);
     for (HRegionInfo hri : unassignedRegions) {
+      //TODO: remember the index every iteration (don't start from zero)
       for (int j = 0; j < numServers; j++) {
         if (!wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
             uniqueRacks, servers.get(j), hri)) {
@@ -595,7 +580,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
           // also update the assignments for checking availability
           List<HRegionInfo> h = new ArrayList<HRegionInfo>();
           h.add(hri);
-          updateLocalityCheckerMaps(h, servers.get(j), currentAssignments.getFirst(),
+          updateAvailabilityCheckerMaps(h, servers.get(j), currentAssignments.getFirst(),
               currentAssignments.getSecond());
           underReplicatedRegions.remove(hri);
           break;
@@ -629,7 +614,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     return false;
   }
 
-  private void updateLocalityCheckerMaps(List<HRegionInfo>serverRegions, ServerName server,
+  private void updateAvailabilityCheckerMaps(List<HRegionInfo>serverRegions, ServerName server,
       Map<ServerName, List<HRegionInfo>> serverToRegions,
       Map<String, List<HRegionInfo>> rackToRegions) {
     List<HRegionInfo> hris = serverToRegions.get(server);
@@ -742,6 +727,12 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
     int numRandomAssignments = 0;
     int numRetainedAssigments = 0;
+    // Get the snapshot of the current assignments for the regions in question, and then create
+    // a cluster out of it. Note that we might have replicas already assigned to some servers
+    // earlier. So we want to get the snapshot to see those assignments.
+    Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>> currentAssignments =
+            getCurrentAssignmentSnapshot(servers, new ArrayList<HRegionInfo>(regions.keySet()));
+    int uniqueRacks = getUniqueRacks(servers);
     for (Map.Entry<HRegionInfo, ServerName> entry : regions.entrySet()) {
       HRegionInfo region = entry.getKey();
       ServerName oldServerName = entry.getValue();
@@ -752,8 +743,15 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       if (localServers.isEmpty()) {
         // No servers on the new cluster match up with this hostname,
         // assign randomly.
-        ServerName randomServer = servers.get(RANDOM.nextInt(servers.size()));
+        ServerName randomServer = null;
+        do {
+          randomServer = servers.get(RANDOM.nextInt(servers.size()));
+        } while (wouldLowerAvailability(currentAssignments.getFirst(),
+            currentAssignments.getSecond(), uniqueRacks, randomServer, region));
         assignments.get(randomServer).add(region);
+        // also update the assignments for checking availability
+        updateAvailabilityCheckerMaps(assignments.get(randomServer), randomServer,
+            currentAssignments.getFirst(), currentAssignments.getSecond());
         numRandomAssignments++;
         if (oldServerName != null) oldHostsNoLongerPresent.add(oldServerName.getHostname());
       } else if (localServers.size() == 1) {
@@ -763,8 +761,15 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       } else {
         // multiple new servers in the cluster on this same host
         int size = localServers.size();
-        ServerName target = localServers.get(RANDOM.nextInt(size));
+        ServerName target = null;
+        do {
+          target = localServers.get(RANDOM.nextInt(size));
+        } while (wouldLowerAvailability(currentAssignments.getFirst(),
+            currentAssignments.getSecond(), uniqueRacks, target, region));
         assignments.get(target).add(region);
+        // also update the assignments for checking availability
+        updateAvailabilityCheckerMaps(assignments.get(target), target,
+            currentAssignments.getFirst(), currentAssignments.getSecond());
         numRetainedAssigments++;
       }
     }
@@ -781,6 +786,42 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     LOG.info("Reassigned " + regions.size() + " regions. " + numRetainedAssigments
         + " retained the pre-restart assignment. " + randomAssignMsg);
     return assignments;
+  }
+
+  private Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>>
+  getCurrentAssignmentSnapshot(List<ServerName> servers, List<HRegionInfo> regions) {
+    Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>> currentAssignments;
+    if (this.services != null) {
+      currentAssignments = this.services.getAssignmentManager().getSnapShotOfAssignment(regions);
+    } else { //create empty datastructures .. lot of code.
+      currentAssignments = new Pair<Map<ServerName, List<HRegionInfo>>,
+          Map<String, List<HRegionInfo>>>();
+      Map<ServerName, List<HRegionInfo>> a = new HashMap<ServerName, List<HRegionInfo>>(0);
+      Map<String, List<HRegionInfo>> b = new HashMap<String, List<HRegionInfo>>(0);
+      currentAssignments.setFirst(a);
+      currentAssignments.setSecond(b);
+    }
+    //for this round of roundRobinAssignment, how many racks are we talking about (TODO: need to access
+    //the rackManager via the master or something)
+    int uniqueRacks = 1;
+    if (rackManager != null) {
+      List<String> racks = rackManager.getRack(servers);
+      Set<String> rackSet = new HashSet<String>(racks);
+      uniqueRacks = rackSet.size();
+    }
+    return currentAssignments;
+  }
+
+  private int getUniqueRacks(List<ServerName> servers) {
+    //for this round of assignment, how many racks are we talking about (TODO: need to access
+    //the rackManager via the master or something)
+    int uniqueRacks = 1;
+    if (rackManager != null) {
+      List<String> racks = rackManager.getRack(servers);
+      Set<String> rackSet = new HashSet<String>(racks);
+      uniqueRacks = rackSet.size();
+    }
+    return uniqueRacks;
   }
 
   @Override

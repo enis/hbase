@@ -18,6 +18,8 @@
  */
 package org.apache.hadoop.hbase.master;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -117,5 +119,66 @@ public class TestMasterReplicaRegions {
       }
       assert(setOfStartKeys.size() == numRegions);
     }
+
+    // Now kill the master, restart it and see if the assignments are kept
+    ServerName master = TEST_UTIL.getHBaseClusterInterface().getClusterStatus().getMaster();
+    TEST_UTIL.getHBaseClusterInterface().stopMaster(master);
+    TEST_UTIL.getHBaseClusterInterface().waitForMasterToStop(master, 30000);
+    TEST_UTIL.getHBaseClusterInterface().startMaster(master.getHostname());
+    TEST_UTIL.getHBaseClusterInterface().waitForActiveAndReadyMaster();
+    for (int i = 0; i < numRegions; i++) {
+      for (int j = 0; j < numReplica; j++) {
+        HRegionInfo replica = hris.get(i).getRegionInfoForReplica(j);
+        RegionState state = TEST_UTIL.getHBaseCluster().getMaster().getAssignmentManager()
+            .getRegionStates().getRegionState(replica);
+        assert (state != null);
+      }
+    }
+    snapshot = new SnapshotOfRegionAssignmentFromMeta(ct);
+    snapshot.initialize();
+    regionToServerMap = snapshot.getRegionToRegionServerMap();
+    assert(regionToServerMap.size() == numRegions * numReplica + 1); //'1' for the namespace
+    serverToRegionMap = snapshot.getRegionServerToRegionMap();
+    for (Map.Entry<ServerName, List<HRegionInfo>> entry : serverToRegionMap.entrySet()) {
+      List<HRegionInfo> regions = entry.getValue();
+      Set<byte[]> setOfStartKeys = new HashSet<byte[]>();
+      for (HRegionInfo region : regions) {
+        byte[] startKey = region.getStartKey();
+        if (region.getTable().equals(table)) setOfStartKeys.add(startKey); //ignore namespace reg
+      }
+      assert(setOfStartKeys.size() == numRegions);
+    }
+
+    // Now shut the whole cluster down, and verify the assignments are retained
+    // TODO: fix the retainAssignment in BaseLoadBalancer
+    TEST_UTIL.getConfiguration().setBoolean("hbase.master.startup.retainassign", true);
+    TEST_UTIL.shutdownMiniHBaseCluster();
+    TEST_UTIL.startMiniHBaseCluster(1, numSlaves);
+    TEST_UTIL.waitTableEnabled(table.getName());
+    ct = new CatalogTracker(TEST_UTIL.getConfiguration());
+    snapshot = new SnapshotOfRegionAssignmentFromMeta(ct);
+    snapshot.initialize();
+    regionToServerMap = snapshot.getRegionToRegionServerMap();
+    assert(regionToServerMap.size() == numRegions * numReplica + 1); //'1' for the namespace
+    serverToRegionMap = snapshot.getRegionServerToRegionMap();
+    for (Map.Entry<ServerName, List<HRegionInfo>> entry : serverToRegionMap.entrySet()) {
+      List<HRegionInfo> regions = entry.getValue();
+      Set<byte[]> setOfStartKeys = new HashSet<byte[]>();
+      for (HRegionInfo region : regions) {
+        byte[] startKey = region.getStartKey();
+        if (region.getTable().equals(table)) setOfStartKeys.add(startKey); //ignore namespace reg
+      }
+      assertEquals("setOfStartKeys.size() " + setOfStartKeys.size() + " numRegions " + numRegions + " " +
+      printRegions(regions),
+          setOfStartKeys.size(), numRegions);
+    }
+  }
+
+  private String printRegions(List<HRegionInfo> regions) {
+    StringBuffer strBuf = new StringBuffer();
+    for (HRegionInfo r : regions) {
+      strBuf.append(" ____ " + r.toString());
+    }
+    return strBuf.toString();
   }
 }
