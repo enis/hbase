@@ -677,6 +677,19 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       LOG.warn("Wanted to do random assignment but no servers to assign to");
       return null;
     }
+    List<HRegionInfo> regions = new ArrayList<HRegionInfo>();
+    regions.add(regionInfo);
+    // Get the snapshot of the current assignments for the regions in question, and then create
+    // a cluster out of it. Note that we might have replicas already assigned to some servers
+    // earlier. So we want to get the snapshot to see those assignments.
+    Pair<Map<ServerName, List<HRegionInfo>>, Map<String, List<HRegionInfo>>> currentAssignments =
+            getCurrentAssignmentSnapshot(servers, regions);
+    int uniqueRacks = getUniqueRacks(servers);
+    ServerName server = null;
+    do {
+      server = servers.get(RANDOM.nextInt(servers.size()));
+    } while (wouldLowerAvailability(currentAssignments.getFirst(),
+        currentAssignments.getSecond(), uniqueRacks, server, regionInfo));
     return servers.get(RANDOM.nextInt(servers.size()));
   }
 
@@ -800,14 +813,6 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       Map<String, List<HRegionInfo>> b = new HashMap<String, List<HRegionInfo>>(0);
       currentAssignments.setFirst(a);
       currentAssignments.setSecond(b);
-    }
-    //for this round of roundRobinAssignment, how many racks are we talking about (TODO: need to access
-    //the rackManager via the master or something)
-    int uniqueRacks = 1;
-    if (rackManager != null) {
-      List<String> racks = rackManager.getRack(servers);
-      Set<String> rackSet = new HashSet<String>(racks);
-      uniqueRacks = rackSet.size();
     }
     return currentAssignments;
   }
