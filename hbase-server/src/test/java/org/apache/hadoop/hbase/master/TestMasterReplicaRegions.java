@@ -150,7 +150,6 @@ public class TestMasterReplicaRegions {
     }
 
     // Now shut the whole cluster down, and verify the assignments are retained
-    // TODO: fix the retainAssignment in BaseLoadBalancer
     TEST_UTIL.getConfiguration().setBoolean("hbase.master.startup.retainassign", true);
     TEST_UTIL.shutdownMiniHBaseCluster();
     TEST_UTIL.startMiniHBaseCluster(1, numSlaves);
