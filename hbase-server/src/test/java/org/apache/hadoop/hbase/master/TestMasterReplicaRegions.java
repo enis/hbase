@@ -102,7 +102,7 @@ public class TestMasterReplicaRegions {
       assert(!servers[0].equals(servers[1]));
     }
     assert(numRows == numRegions);
-    
+
     // The same verification of the meta as above but with the SnapshotOfRegionAssignmentFromMeta
     // class
     SnapshotOfRegionAssignmentFromMeta snapshot = new SnapshotOfRegionAssignmentFromMeta(ct);
