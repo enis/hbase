@@ -37,6 +37,11 @@ message Column {
   repeated bytes qualifier = 2;
 }
 
+enum Consistency {
+  STRONG   = 0;
+  EVENTUAL = 1;
+}
+
 /**
  * The protocol buffer version of Get.
  * Unless existence_only is specified, return all the requested data
@@ -62,8 +67,7 @@ message Get {
   // closest row before.
   optional bool closest_row_before = 11 [default = false];
 
-  // If the server can return stale data.
-  optional bool allow_stale = 12 [default = false];
+  optional Consistency consistency = 12 [default = STRONG];
 }
 
 message Result {
@@ -221,6 +225,7 @@ message Scan {
   optional uint32 store_offset = 12;
   optional bool load_column_families_on_demand = 13; /* DO NOT add defaults to load_column_families_on_demand. */
   optional bool small = 14;
+  optional Consistency consistency = 15 [default = STRONG];
 }
 
 /**

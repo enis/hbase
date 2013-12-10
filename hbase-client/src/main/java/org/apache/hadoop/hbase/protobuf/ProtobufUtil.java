@@ -40,7 +40,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.CellUtil;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
@@ -50,7 +49,9 @@ import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.NamespaceDescriptor;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Append;
+import org.apache.hadoop.hbase.client.Consistency;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Get;
@@ -99,12 +100,12 @@ import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.MutationProto.Col
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.MutationProto.DeleteType;
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.MutationProto.MutationType;
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.ScanRequest;
+import org.apache.hadoop.hbase.protobuf.generated.ClusterStatusProtos.RegionLoad;
 import org.apache.hadoop.hbase.protobuf.generated.ComparatorProtos;
 import org.apache.hadoop.hbase.protobuf.generated.FilterProtos;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.NameBytesPair;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.RegionInfo;
-import org.apache.hadoop.hbase.protobuf.generated.ClusterStatusProtos.RegionLoad;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.RegionSpecifier;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.RegionSpecifier.RegionSpecifierType;
 import org.apache.hadoop.hbase.protobuf.generated.MapReduceProtos;
@@ -412,10 +413,26 @@ public final class ProtobufUtil {
     if (proto.hasClosestRowBefore() && proto.getClosestRowBefore()){
       get.setClosestRowBefore(true);
     }
-    if (proto.hasAllowStale() && proto.getAllowStale()){
-      get.setAllowStale(true);
+    if (proto.hasConsistency()) {
+      get.setConsistency(toConsistency(proto.getConsistency()));
     }
     return get;
+  }
+
+  public static Consistency toConsistency(ClientProtos.Consistency consistency) {
+    switch (consistency) {
+    case STRONG   : return Consistency.STRONG;
+    case EVENTUAL : return Consistency.EVENTUAL;
+    default       : return Consistency.STRONG;
+    }
+  }
+
+  public static ClientProtos.Consistency toConsistency(Consistency consistency) {
+    switch (consistency) {
+    case STRONG   : return ClientProtos.Consistency.STRONG;
+    case EVENTUAL : return ClientProtos.Consistency.EVENTUAL;
+    default       : return ClientProtos.Consistency.STRONG;
+    }
   }
 
   /**
@@ -580,7 +597,7 @@ public final class ProtobufUtil {
    * @param cellScanner
    * @param proto the protocol buffer Mutate to convert
    * @return the converted client Append
-   * @throws IOException 
+   * @throws IOException
    */
   public static Append toAppend(final MutationProto proto, final CellScanner cellScanner)
   throws IOException {
@@ -925,6 +942,7 @@ public final class ProtobufUtil {
     if (get.isClosestRowBefore()){
       builder.setClosestRowBefore(true);
     }
+    builder.setConsistency(toConsistency(get.getConsistency()));
     return builder.build();
   }
 
