@@ -1105,6 +1105,7 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * Returns the configured replicas per region 
    */
   public int getNumRegionReplicas() {
+    if (getValue(NUM_REGION_REPLICAS_KEY) == null) return 1;
     return Integer.parseInt(new String(getValue(NUM_REGION_REPLICAS_KEY), Charset.forName("UTF-8")));
   }
 
