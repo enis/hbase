@@ -1336,7 +1336,7 @@ public class HConnectionManager {
      * Delete all cached entries of a table that maps to a specific location.
      */
     @Override
-    public void clearCaches(final ServerName serverName){
+    public void clearCaches(final ServerName serverName) {
       boolean deletedSomething = false;
       synchronized (this.cachedRegionLocations) {
         if (!cachedServers.contains(serverName)) {
@@ -1346,10 +1346,20 @@ public class HConnectionManager {
             cachedRegionLocations.values()) {
           for (Entry<byte[], HRegionLocation> e : tableLocations.entrySet()) {
             HRegionLocation value = e.getValue();
-            if (value != null
-                && serverName.equals(value.getServerName())) {
-              tableLocations.remove(e.getKey());
-              deletedSomething = true;
+            if (value != null) {
+              boolean toRemove = serverName.equals(value.getServerName());
+              if (!toRemove && value.getSecondaryServers() != null) {
+                for (ServerName sn : value.getSecondaryServers()) {
+                  if (serverName.equals(sn)) {
+                    toRemove = true;
+                    break;
+                  }
+                }
+                if (toRemove) {
+                  tableLocations.remove(e.getKey());
+                  deletedSomething = true;
+                }
+              }
             }
           }
         }

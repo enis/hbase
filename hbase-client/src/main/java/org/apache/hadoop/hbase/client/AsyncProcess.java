@@ -88,7 +88,7 @@ import org.cloudera.htrace.Trace;
  */
 class AsyncProcess<CResult> {
   private static final Log LOG = LogFactory.getLog(AsyncProcess.class);
-  private final static int START_LOG_ERRORS_CNT = 4;
+  private final static int START_LOG_ERRORS_CNT = 0;
   protected final HConnection hConnection;
   protected final TableName tableName;
   protected final ExecutorService pool;
@@ -681,10 +681,10 @@ class AsyncProcess<CResult> {
       long backOffTime = (errorsByServer != null ?
           errorsByServer.calculateBackoffTime(location, pause) :
           ConnectionUtils.getPauseTime(pause, numAttempt));
-      if (numAttempt > START_LOG_ERRORS_CNT && LOG.isDebugEnabled()) {
+      if (numAttempt > START_LOG_ERRORS_CNT) {
         // We use this value to have some logs when we have multiple failures, but not too many
         //  logs, as errors are to be expected when a region moves, splits and so on
-        LOG.debug("Attempt #" + numAttempt + "/" + numTries + " failed " + failureCount +
+        LOG.info("Attempt #" + numAttempt + "/" + numTries + " failed " + failureCount +
             " ops , resubmitting " + toReplay.size() + ", " + location + ", last exception was: " +
             (throwable == null ? "null" : throwable.getMessage()) +
             ", sleeping " + backOffTime + "ms");
@@ -703,9 +703,9 @@ class AsyncProcess<CResult> {
         // We have a failure but nothing to retry. We're done, it's a final failure..
         LOG.warn("Attempt #" + numAttempt + "/" + numTries + " failed for " + failureCount +
             " ops on " + location.getServerName() + " NOT resubmitting. " + location);
-      } else if (numAttempt > START_LOG_ERRORS_CNT + 1 && LOG.isDebugEnabled()) {
+      } else if (numAttempt > START_LOG_ERRORS_CNT + 1) {
         // The operation was successful, but needed several attempts. Let's log this.
-        LOG.debug("Attempt #" + numAttempt + "/" + numTries + " finally suceeded, size=" +
+        LOG.info("Attempt #" + numAttempt + "/" + numTries + " finally suceeded, size=" +
           toReplay.size());
       }
     }

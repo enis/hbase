@@ -284,7 +284,7 @@ public class RpcRetryingCallerWithFallBack {
    * @throws org.apache.hadoop.hbase.DoNotRetryIOException
    *          - if we find it, we throw it instead of translating.
    */
-  static Throwable translateException(Throwable t) throws DoNotRetryIOException {
+  static Throwable translateException(Throwable t) throws DoNotRetryIOException, RetriesExhaustedException {
     if (t instanceof UndeclaredThrowableException) {
       if (t.getCause() != null) {
         t = t.getCause();
@@ -305,6 +305,8 @@ public class RpcRetryingCallerWithFallBack {
       translateException(t);
     } else if (t instanceof DoNotRetryIOException) {
       throw (DoNotRetryIOException) t;
+    } else if (t instanceof RetriesExhaustedException) {
+      throw (RetriesExhaustedException) t;
     }
     return t;
   }
