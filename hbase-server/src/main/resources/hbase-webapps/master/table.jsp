@@ -44,7 +44,7 @@
   HTable table = new HTable(conf, fqtn);
   String tableHeader;
   boolean withReplica = false;
-  if (table.getTableDescriptor().getNumRegionReplicas() > 1) {
+  if (table.getTableDescriptor().getRegionReplication() > 1) {
     tableHeader = "<h2>Table Regions</h2><table class=\"table table-striped\"><tr><th>Name</th><th>Region Server</th><th>Start Key</th><th>End Key</th><th>Requests</th><th>Primary-replica?</th></tr>";
     withReplica = true;
   } else {
