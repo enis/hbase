@@ -492,7 +492,6 @@ public class MetaReader {
           if (sn != null && sn.equals(serverName)) {
             this.results.add(r);
             hris.put(pair.getFirst().getRegionInfoForReplica(replicaId), r);
-            break;
           }
           replicaId++;
         }
