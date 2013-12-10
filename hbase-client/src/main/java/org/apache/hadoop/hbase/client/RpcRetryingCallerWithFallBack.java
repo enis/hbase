@@ -111,10 +111,11 @@ public class RpcRetryingCallerWithFallBack {
     public Result call() throws Exception {
       Result r = ProtobufUtil.get(getConnection().getClient(
           getLocation().getServerName()), getHRegionInfo().getRegionInfoForReplica(id).getRegionName(), get);
-      // todo we should build the object only once, but we can't right now as the probufUtils wants
+      // todo we should build the object only once, but we can't right now as the protobufUtils wants
       //  the destination server.
 
       if (id != HRegionInfo.REPLICA_ID_PRIMARY) {
+        LOG.debug("Found a result on a secondary replicas, id=" + id);
         r.setStale(true);
       }
       return r;
@@ -198,7 +199,7 @@ public class RpcRetryingCallerWithFallBack {
       exceptions.add(qt);
     } catch (TimeoutException ignored) {
     } catch (InterruptedException e) {
-      mainReturn.cancel(true);
+      mainReturn.cancel(false);
       throw new InterruptedIOException();
     }
 
@@ -250,7 +251,7 @@ public class RpcRetryingCallerWithFallBack {
       }
     } finally {
       for (Future<Result> task : inProgress) {
-        task.cancel(true);
+        task.cancel(false); // We should interrupt as well; but let's play it safe at the beginning.
       }
     }
 
