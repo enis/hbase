@@ -313,7 +313,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       // where the replica is
       Set<HRegionInfo> set = serverToReplicaMap.get(server);
       HRegionInfo hri = regions[region].getPrimaryRegionInfo();
-      if (set.contains(hri)) return true;
+      if (set != null && set.contains(hri)) return true;
       //TODO: add same host checks (if more than 1 host,then don't place replicas on the same host)
       // also availability would be lowered if the balancer chooses the node to move to a
       // node in the same rack (if there were multiple racks to choose from)

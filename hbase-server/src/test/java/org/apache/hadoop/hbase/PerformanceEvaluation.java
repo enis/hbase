@@ -42,6 +42,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.client.Consistency;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HConnection;
@@ -127,6 +128,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
   private DataBlockEncoding blockEncoding = DataBlockEncoding.NONE;
   private boolean flushCommits = true;
   private boolean writeToWAL = true;
+  private boolean eventualConsistency = false;
   private boolean inMemoryCF = false;
   private int presplitRegions = 0;
   private HConnection connection;
@@ -142,6 +144,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
         "totalRows=(\\d+),\\s+" +
         "clients=(\\d+),\\s+" +
         "flushCommits=(\\w+),\\s+" +
+        "eventualConsistency=(\\w+),\\s+" +
         "writeToWAL=(\\w+)");
 
   /**
@@ -218,6 +221,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
     private int totalRows = 0;
     private int clients = 0;
     private boolean flushCommits = false;
+    private boolean eventualConsistency = false;
     private boolean writeToWAL = true;
 
     public PeInputSplit() {
@@ -226,17 +230,19 @@ public class PerformanceEvaluation extends Configured implements Tool {
       this.totalRows = 0;
       this.clients = 0;
       this.flushCommits = false;
+      this.eventualConsistency = false;
       this.writeToWAL = true;
     }
 
     public PeInputSplit(TableName tableName, int startRow, int rows, int totalRows, int clients,
-        boolean flushCommits, boolean writeToWAL) {
+        boolean flushCommits, boolean eventualConsistency, boolean writeToWAL) {
       this.tableName = tableName;
       this.startRow = startRow;
       this.rows = rows;
       this.totalRows = totalRows;
       this.clients = clients;
       this.flushCommits = flushCommits;
+      this.eventualConsistency = eventualConsistency;
       this.writeToWAL = writeToWAL;
     }
 
@@ -252,6 +258,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
       this.totalRows = in.readInt();
       this.clients = in.readInt();
       this.flushCommits = in.readBoolean();
+      this.eventualConsistency = in.readBoolean();
       this.writeToWAL = in.readBoolean();
     }
 
@@ -265,6 +272,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
       out.writeInt(totalRows);
       out.writeInt(clients);
       out.writeBoolean(flushCommits);
+      out.writeBoolean(eventualConsistency);
       out.writeBoolean(writeToWAL);
     }
 
@@ -341,7 +349,8 @@ public class PerformanceEvaluation extends Configured implements Tool {
             int totalRows = Integer.parseInt(m.group(4));
             int clients = Integer.parseInt(m.group(5));
             boolean flushCommits = Boolean.parseBoolean(m.group(6));
-            boolean writeToWAL = Boolean.parseBoolean(m.group(7));
+            boolean eventualConsistency = Boolean.parseBoolean(m.group(7));
+            boolean writeToWAL = Boolean.parseBoolean(m.group(8));
 
             LOG.debug("tableName=" + tableName +
                       " split["+ splitList.size() + "] " +
@@ -350,11 +359,12 @@ public class PerformanceEvaluation extends Configured implements Tool {
                       " totalRows=" + totalRows +
                       " clients=" + clients +
                       " flushCommits=" + flushCommits +
+                      " eventualConsistency=" + eventualConsistency +
                       " writeToWAL=" + writeToWAL);
 
             PeInputSplit newSplit =
               new PeInputSplit(tableName, startRow, rows, totalRows, clients,
-                flushCommits, writeToWAL);
+                flushCommits, eventualConsistency, writeToWAL);
             splitList.add(newSplit);
           }
         }
@@ -476,7 +486,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
       pe.tableName = value.getTableName();
       long elapsedTime = this.pe.runOneClient(this.cmd, value.getStartRow(),
                                   value.getRows(), value.getTotalRows(),
-                                  value.isFlushCommits(), value.isWriteToWAL(),
+                                  value.isFlushCommits(), value.eventualConsistency, value.isWriteToWAL(),
                                   HConnectionManager.createConnection(context.getConfiguration()), status);
       // Collect how much time the thing took. Report as map output and
       // to the ELAPSED_TIME counter.
@@ -583,6 +593,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
     final boolean flushCommits = this.flushCommits;
     final Compression.Algorithm compression = this.compression;
     final boolean writeToWal = this.writeToWAL;
+    final boolean eventualConsistency = this.eventualConsistency;
     final int preSplitRegions = this.presplitRegions;
     final HConnection connection = HConnectionManager.createConnection(getConf());
     for (int i = 0; i < this.N; i++) {
@@ -597,13 +608,14 @@ public class PerformanceEvaluation extends Configured implements Tool {
           pe.flushCommits = flushCommits;
           pe.compression = compression;
           pe.writeToWAL = writeToWal;
+          pe.eventualConsistency = eventualConsistency;
           pe.presplitRegions = preSplitRegions;
           pe.N = N;
           pe.connection = connection;
           try {
             long elapsedTime = pe.runOneClient(cmd, index * perClientRows,
                perClientRows, R,
-                flushCommits, writeToWAL, connection, new Status() {
+                flushCommits, eventualConsistency, writeToWAL, connection, new Status() {
                   public void setStatus(final String msg) throws IOException {
                     LOG.info("client-" + getName() + " " + msg);
                   }
@@ -767,6 +779,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
     private TableName tableName;
     private boolean flushCommits;
     private boolean writeToWAL = true;
+    private boolean eventualConsistency = false;
     private HConnection connection;
 
     TestOptions() {
@@ -774,13 +787,14 @@ public class PerformanceEvaluation extends Configured implements Tool {
 
     TestOptions(int startRow, int perClientRunRows, int totalRows,
                 int numClientThreads, TableName tableName,
-                boolean flushCommits, boolean writeToWAL, HConnection connection) {
+                boolean flushCommits, boolean eventualConsistency, boolean writeToWAL, HConnection connection) {
       this.startRow = startRow;
       this.perClientRunRows = perClientRunRows;
       this.totalRows = totalRows;
       this.numClientThreads = numClientThreads;
       this.tableName = tableName;
       this.flushCommits = flushCommits;
+      this.eventualConsistency = eventualConsistency;
       this.writeToWAL = writeToWAL;
       this.connection = connection;
     }
@@ -813,6 +827,10 @@ public class PerformanceEvaluation extends Configured implements Tool {
       return writeToWAL;
     }
 
+    boolean isEventualConsistency() {
+      return eventualConsistency;
+    }
+
     public HConnection getConnection() {
       return connection;
     }
@@ -840,6 +858,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
     protected HTableInterface table;
     protected volatile Configuration conf;
     protected boolean flushCommits;
+    protected boolean eventualConsistency;
     protected boolean writeToWAL;
     protected HConnection connection;
 
@@ -858,6 +877,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
       this.conf = conf;
       this.flushCommits = options.isFlushCommits();
       this.writeToWAL = options.isWriteToWAL();
+      this.eventualConsistency = options.isEventualConsistency();
       this.connection = options.getConnection();
     }
 
@@ -932,6 +952,8 @@ public class PerformanceEvaluation extends Configured implements Tool {
       Scan scan = new Scan(getRandomRow(this.rand, this.totalRows));
       scan.addColumn(FAMILY_NAME, QUALIFIER_NAME);
       scan.setFilter(new WhileMatchFilter(new PageFilter(120)));
+      LOG.info("eventualConsistency=" + eventualConsistency);
+      scan.setConsistency(eventualConsistency ? Consistency.EVENTUAL : Consistency.STRONG);
       ResultScanner s = this.table.getScanner(scan);
       //int count = 0;
       for (Result rr = null; (rr = s.next()) != null;) {
@@ -1041,6 +1063,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
     @Override
     void testRow(final int i) throws IOException {
       Get get = new Get(getRandomRow(this.rand, this.totalRows));
+      get.setConsistency(eventualConsistency ? Consistency.EVENTUAL : Consistency.STRONG);
       get.addColumn(FAMILY_NAME, QUALIFIER_NAME);
       this.table.get(get);
     }
@@ -1212,7 +1235,8 @@ public class PerformanceEvaluation extends Configured implements Tool {
 
   long runOneClient(final Class<? extends Test> cmd, final int startRow,
                     final int perClientRunRows, final int totalRows,
-                    boolean flushCommits, boolean writeToWAL, HConnection connection,
+                    boolean flushCommits, boolean eventualConsistency, boolean writeToWAL,
+                    HConnection connection,
                     final Status status)
   throws IOException {
     status.setStatus("Start " + cmd + " at offset " + startRow + " for " +
@@ -1220,7 +1244,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
     long totalElapsedTime = 0;
 
     TestOptions options = new TestOptions(startRow, perClientRunRows,
-        totalRows, N, tableName, flushCommits, writeToWAL, connection);
+        totalRows, N, tableName, flushCommits, eventualConsistency, writeToWAL, connection);
     final Test t;
     try {
       Constructor<? extends Test> constructor = cmd.getDeclaredConstructor(
@@ -1252,7 +1276,7 @@ public class PerformanceEvaluation extends Configured implements Tool {
     try {
       admin = new HBaseAdmin(getConf());
       checkTable(admin);
-      runOneClient(cmd, 0, this.R, this.R, this.flushCommits, this.writeToWAL, this.connection,
+      runOneClient(cmd, 0, this.R, this.R, this.flushCommits, this.eventualConsistency, this.writeToWAL, this.connection,
         status);
     } catch (Exception e) {
       LOG.error("Failed", e);
@@ -1403,6 +1427,12 @@ public class PerformanceEvaluation extends Configured implements Tool {
         final String inMemory = "--inmemory=";
         if (cmd.startsWith(inMemory)) {
           this.inMemoryCF = Boolean.parseBoolean(cmd.substring(inMemory.length()));
+          continue;
+        }
+
+        final String eventualConsistency = "--eventualConsistency=";
+        if (cmd.startsWith(eventualConsistency)) {
+          this.eventualConsistency = Boolean.parseBoolean(cmd.substring(eventualConsistency.length()));
           continue;
         }
 

@@ -254,7 +254,7 @@ public class TestReplicasClient {
       SlowMeCopro.cdl.set(new CountDownLatch(1));
 
       Get g = new Get(b1);
-      g.setAllowStale(true);
+      g.setConsistency(Consistency.EVENTUAL);
       Result r = table.get(g);
       Assert.assertTrue(r.isStale());
 
@@ -380,7 +380,7 @@ public class TestReplicasClient {
       // But if we ask for stale we will get it
       SlowMeCopro.sleepTime.set(2000); // todo: ad cdl does not work here. Why?
       g = new Get(b1);
-      g.setAllowStale(true);
+      g.setConsistency(Consistency.EVENTUAL);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
       Assert.assertTrue(r.getColumnCells(f, b1).isEmpty());
@@ -400,7 +400,7 @@ public class TestReplicasClient {
       SlowMeCopro.cdl.set(new CountDownLatch(1));
       g = new Get(b1);
       g.setCheckExistenceOnly(true);
-      g.setAllowStale(true);
+      g.setConsistency(Consistency.EVENTUAL);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
       Assert.assertFalse("The secondary has stale data", r.getExists());
@@ -413,7 +413,7 @@ public class TestReplicasClient {
       // get works and is not stale
       SlowMeCopro.cdl.set(new CountDownLatch(1));
       g = new Get(b1);
-      g.setAllowStale(true);
+      g.setConsistency(Consistency.EVENTUAL);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
       //  Assert.assertFalse(r.isEmpty()); // todo: how can we know that the flush was seen by the replica?
@@ -424,7 +424,7 @@ public class TestReplicasClient {
       SlowMeCopro.cdl.set(new CountDownLatch(1));
       g = new Get(b1);
       g.setCheckExistenceOnly(true);
-      g.setAllowStale(true);
+      g.setConsistency(Consistency.EVENTUAL);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
       // Assert.assertTrue(r.getExists());   // todo: how can we know that the flush was seen by the replica?

@@ -13,12 +13,14 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.ipc.RemoteException;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -51,7 +53,7 @@ public class RpcRetryingCallerWithFallBack {
   private final AtomicBoolean finished = new AtomicBoolean(false);
 
   public RpcRetryingCallerWithFallBack(TableName tableName,
-                                       HConnection connection, final Get get, ExecutorService pool, int retries, int callTimeout) {
+                                       HConnection connection, final Get get, ExecutorService pool, int retries, int callTimeout, int timeBeforeReplicas) {
     this.tableName = tableName;
     this.connection = connection;
     this.conf = connection.getConfiguration();
@@ -59,7 +61,7 @@ public class RpcRetryingCallerWithFallBack {
     this.pool = pool;
     this.retries = retries;
     this.callTimeout = callTimeout;
-    this.timeBeforeReplicas = 50; // todo: should be configurable
+    this.timeBeforeReplicas = timeBeforeReplicas;
   }
 
   /**
@@ -109,10 +111,16 @@ public class RpcRetryingCallerWithFallBack {
 
     @Override
     public Result call() throws Exception {
-      Result r = ProtobufUtil.get(getConnection().getClient(
-          getLocation().getServerName()), getHRegionInfo().getRegionInfoForReplica(id).getRegionName(), get);
+      HRegionInfo mainHri = getHRegionInfo();
+      byte[] reg =  mainHri.getRegionName();
+      ServerName sn =  getLocation().getServerName();
+      LOG.info("Calling replica with id=" + id +", sn=" + sn+ ", " +  mainHri.getRegionInfoForReplica(id).getEncodedName() + " " + Arrays.toString(reg));
+
+      Result r = ProtobufUtil.get(getConnection().getClient(sn), reg, get);
       // todo we should build the object only once, but we can't right now as the protobufUtils wants
       //  the destination server.
+
+      LOG.info("Got result from replica with id=" + id);
 
       if (id != HRegionInfo.REPLICA_ID_PRIMARY) {
         LOG.debug("Found a result on a secondary replicas, id=" + id);
@@ -188,6 +196,9 @@ public class RpcRetryingCallerWithFallBack {
 
     boolean done = false;
     try {
+      // Note that if the pool is full, we will send data to the replicas as well
+      // It's a tradeoff: if we want to minimize latency; we MAY want to go to all the replica
+      //  to be sure.
       return mainReturn.get(timeBeforeReplicas, TimeUnit.MILLISECONDS);
     } catch (ExecutionException e) {
       LOG.info("Error on primary ", e);
@@ -208,6 +219,7 @@ public class RpcRetryingCallerWithFallBack {
     if (!done) {
       inProgress.add(mainReturn);
       for (int i = 1; i <= secondaryReplicaCount; i++) {
+        LOG.info("Primary is not fast enough. Using one of the  " + secondaryReplicaCount + " secondary replicas. done=" + done);
         ReplicaRegionServerCallable callOnReplica = new ReplicaRegionServerCallable(i);
         RetryingRPC retryingOnReplica = new RetryingRPC(callOnReplica);
         inProgress.add(pool.submit(retryingOnReplica));
@@ -230,6 +242,9 @@ public class RpcRetryingCallerWithFallBack {
                 try {
                   Result r = task.get();
                   finished.set(true); // We've got a result. Any other call can now stop.
+                  if (r.isStale()){
+                    LOG.info("Using a stale data for the result");
+                  }
                   return r;
                 } catch (ExecutionException e) {
                   LOG.info("Caught " + e.getMessage());

@@ -746,7 +746,7 @@ public class HTable implements HTableInterface {
    */
   @Override
   public Result get(final Get get) throws IOException {
-    if (!get.isAllowStale()) {
+    if (get.getConsistency() == Consistency.STRONG) {
       // Good old call.
       RegionServerCallable<Result> callable = new RegionServerCallable<Result>(this.connection,
           getName(), get.getRow()) {
@@ -766,7 +766,11 @@ public class HTable implements HTableInterface {
         HConstants.DEFAULT_HBASE_CLIENT_OPERATION_TIMEOUT);
 
     RpcRetryingCallerWithFallBack callable = new RpcRetryingCallerWithFallBack(
-        tableName, this.connection, get, pool, retries, callTimeout);
+        tableName, this.connection, get, pool, retries, callTimeout, 1);
+    // Question. Should the time before using a replica be:
+    //  a parameter of the get
+    //  a parameter of the table
+    //  both
     return callable.call();
   }
 
