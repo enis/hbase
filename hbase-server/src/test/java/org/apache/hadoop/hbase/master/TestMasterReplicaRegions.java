@@ -171,6 +171,21 @@ public class TestMasterReplicaRegions {
       printRegions(regions),
           setOfStartKeys.size(), numRegions);
     }
+    // Now shut the whole cluster down, and verify regions are assigned even if there is only
+    // one server running
+    TEST_UTIL.getConfiguration().setBoolean("hbase.master.startup.retainassign", true);
+    TEST_UTIL.shutdownMiniHBaseCluster();
+    TEST_UTIL.startMiniHBaseCluster(1, 1);
+    TEST_UTIL.waitTableEnabled(table.getName());
+    ct = new CatalogTracker(TEST_UTIL.getConfiguration());
+    snapshot = new SnapshotOfRegionAssignmentFromMeta(ct);
+    snapshot.initialize();
+    regionToServerMap = snapshot.getRegionToRegionServerMap();
+    assert(regionToServerMap.size() == numRegions * numReplica + 1); //'1' for the namespace
+    serverToRegionMap = snapshot.getRegionServerToRegionMap();
+    assert(serverToRegionMap.keySet().size() == 1);
+    assert(serverToRegionMap.values().iterator().next().size() == numRegions * numReplica + 1);
+    
   }
 
   private String printRegions(List<HRegionInfo> regions) {

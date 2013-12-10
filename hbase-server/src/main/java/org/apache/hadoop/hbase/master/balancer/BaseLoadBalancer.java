@@ -562,10 +562,10 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       assignments.put(server, serverRegions);
       regionIdx++;
     }
+    List<HRegionInfo> lastFewRegions = new ArrayList<HRegionInfo>();
+    lastFewRegions.addAll(unassignedRegions);
     // assign the unassigned regions by going through the list and doing straight
     // round robin
-    List<HRegionInfo> underReplicatedRegions = new ArrayList<HRegionInfo>();
-    underReplicatedRegions.addAll(unassignedRegions);
     for (HRegionInfo hri : unassignedRegions) {
       //TODO: remember the index every iteration (don't start from zero)
       for (int j = 0; j < numServers; j++) {
@@ -582,12 +582,22 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
           h.add(hri);
           updateAvailabilityCheckerMaps(h, servers.get(j), currentAssignments.getFirst(),
               currentAssignments.getSecond());
-          underReplicatedRegions.remove(hri);
+          lastFewRegions.remove(hri);
           break;
         }
       }
     }
-    //TODO: whatever is remaining now is under replicated. Need to keep trying to assign them
+    // just sprinkle the rest of the regions on random regionservers. The balanceCluster will
+    // make it optimal later
+    for (HRegionInfo hri : lastFewRegions) {
+      int i = RANDOM.nextInt(numServers);
+      List<HRegionInfo> hris = assignments.get(servers.get(i));
+      if (hris == null) {
+        hris = new ArrayList<HRegionInfo>();
+      }
+      hris.add(hri);
+      assignments.put(servers.get(i), hris);
+    }
     return assignments;
   }
 
@@ -688,9 +698,9 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     ServerName server = null;
     do {
       server = servers.get(RANDOM.nextInt(servers.size()));
-    } while (wouldLowerAvailability(currentAssignments.getFirst(),
+    } while (servers.size() != 1 && wouldLowerAvailability(currentAssignments.getFirst(),
         currentAssignments.getSecond(), uniqueRacks, server, regionInfo));
-    return servers.get(RANDOM.nextInt(servers.size()));
+    return server;
   }
 
   /**
@@ -759,7 +769,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         ServerName randomServer = null;
         do {
           randomServer = servers.get(RANDOM.nextInt(servers.size()));
-        } while (wouldLowerAvailability(currentAssignments.getFirst(),
+        } while (servers.size() != 1 && wouldLowerAvailability(currentAssignments.getFirst(),
             currentAssignments.getSecond(), uniqueRacks, randomServer, region));
         assignments.get(randomServer).add(region);
         // also update the assignments for checking availability
@@ -777,7 +787,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         ServerName target = null;
         do {
           target = localServers.get(RANDOM.nextInt(size));
-        } while (wouldLowerAvailability(currentAssignments.getFirst(),
+        } while (localServers.size() != 1 && wouldLowerAvailability(currentAssignments.getFirst(),
             currentAssignments.getSecond(), uniqueRacks, target, region));
         assignments.get(target).add(region);
         // also update the assignments for checking availability

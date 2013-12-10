@@ -485,19 +485,20 @@ public class MetaReader {
       @Override
       void add(Result r) {
         if (r == null || r.isEmpty()) return;
-        ServerName sn = HRegionInfo.getServerName(r);
-        if (sn != null && sn.equals(serverName)) this.results.add(r);
+        Pair<HRegionInfo,ServerName[]> pair = HRegionInfo.getServerNamesFromMetaRowResult(r);
+        if (pair == null || pair.getFirst() == null || pair.getSecond() == null) return;
+        int replicaId = 0;
+        for (ServerName sn : pair.getSecond()) {
+          if (sn != null && sn.equals(serverName)) {
+            this.results.add(r);
+            hris.put(pair.getFirst().getRegionInfoForReplica(replicaId), r);
+            break;
+          }
+          replicaId++;
+        }
       }
     };
     fullScan(catalogTracker, v);
-    List<Result> results = v.getResults();
-    if (results != null && !results.isEmpty()) {
-      // Convert results to Map keyed by HRI
-      for (Result r: results) {
-        Pair<HRegionInfo, ServerName> p = HRegionInfo.getHRegionInfoAndServerName(r);
-        if (p != null && p.getFirst() != null) hris.put(p.getFirst(), r);
-      }
-    }
     return hris;
   }
 
