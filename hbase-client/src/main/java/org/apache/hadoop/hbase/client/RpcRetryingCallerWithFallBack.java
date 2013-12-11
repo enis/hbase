@@ -237,7 +237,11 @@ public class RpcRetryingCallerWithFallBack {
               it.remove();
               if (!task.isCancelled()) {
                 try {
-                  return task.get();
+                  Result r = task.get();
+                  if (r.isStale()){
+                    LOG.info("STALE DATA!!");
+                  }
+                  return r;
                 } catch (ExecutionException e) {
                   LOG.info("Caught " + e.getMessage());
                   Throwable t = translateException(e);
