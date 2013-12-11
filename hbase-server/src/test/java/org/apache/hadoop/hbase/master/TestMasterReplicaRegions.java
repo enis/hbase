@@ -89,7 +89,6 @@ public class TestMasterReplicaRegions {
       assert(hris.size() == numRegions * numReplica);
     } finally {
       admin.disableTable(table);
-      admin.deleteTable(table);
     }
   }
 
@@ -176,7 +175,6 @@ public class TestMasterReplicaRegions {
       validateSingleRegionServerAssignment(ct, numRegions, numReplica);
     } finally {
       admin.disableTable(table);
-      admin.deleteTable(table);
     }
   }
 
