@@ -224,7 +224,6 @@ EOF
 
       if eventualConsistency
         get.setConsistency(org.apache.hadoop.hbase.client.Consistency::EVENTUAL)
-        puts "using eventual consistency"
       end
 
       unless args.empty?
