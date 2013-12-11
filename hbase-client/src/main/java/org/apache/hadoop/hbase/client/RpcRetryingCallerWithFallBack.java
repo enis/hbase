@@ -113,14 +113,14 @@ public class RpcRetryingCallerWithFallBack {
     public Result call() throws Exception {
       HRegionInfo mainHri = getHRegionInfo();
       byte[] reg = mainHri.getRegionInfoForReplica(id) .getRegionName();
-      ServerName sn = getLocation().getServerName();
 
-      Result r = ProtobufUtil.get(getConnection().getClient(sn), reg, get);
+      Result r = ProtobufUtil.get(getStub(), reg, get);
       // todo we should build the object only once, but we can't right now as the protobufUtils wants
       //  the destination server.
 
       if (id != HRegionInfo.REPLICA_ID_PRIMARY) {
         r.setStale(true);
+        LOG.info("Returning a stale result");
       }
 
       return r;
@@ -216,6 +216,7 @@ public class RpcRetryingCallerWithFallBack {
       // If it fails on the main one, we try on all replica. This saves added latency if
       //  the second replica is delayed as well, but, obviously, increase the load.
       for (int i = 1; i <= secondaryReplicaCount; i++) {
+        LOG.info("ReplicaRegionServerCallable id="+i);
         ReplicaRegionServerCallable callOnReplica = new ReplicaRegionServerCallable(i);
         RetryingRPC retryingOnReplica = new RetryingRPC(callOnReplica);
         inProgress.add(pool.submit(retryingOnReplica));

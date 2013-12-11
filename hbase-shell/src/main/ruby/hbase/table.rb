@@ -200,6 +200,7 @@ EOF
     def _get_internal(row, *args)
       get = org.apache.hadoop.hbase.client.Get.new(row.to_s.to_java_bytes)
       maxlength = -1
+      eventualConsistency = false
       @converters.clear()
       
       # Normalize args
@@ -219,6 +220,12 @@ EOF
       # Get maxlength parameter if passed
       maxlength = args.delete(MAXLENGTH) if args[MAXLENGTH]
       filter = args.delete(FILTER) if args[FILTER]
+      eventualConsistency = args.delete("EVENTUAL_CONSISTENCY") if args["EVENTUAL_CONSISTENCY"]
+
+      if eventualConsistency
+        get.setConsistency(org.apache.hadoop.hbase.client.Consistency::EVENTUAL)
+        puts "using eventual consistency"
+      end
 
       unless args.empty?
         columns = args[COLUMN] || args[COLUMNS]

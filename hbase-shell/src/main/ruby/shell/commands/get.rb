@@ -28,6 +28,7 @@ a dictionary of column(s), timestamp, timerange and versions. Examples:
   hbase> get 't1', 'r1'
   hbase> get 't1', 'r1', {TIMERANGE => [ts1, ts2]}
   hbase> get 't1', 'r1', {COLUMN => 'c1'}
+  hbase> get 'r1', {EVENTUAL_CONSISTENCY => 'true'}
   hbase> get 't1', 'r1', {COLUMN => ['c1', 'c2', 'c3']}
   hbase> get 't1', 'r1', {COLUMN => 'c1', TIMESTAMP => ts1}
   hbase> get 't1', 'r1', {COLUMN => 'c1', TIMERANGE => [ts1, ts2], VERSIONS => 4}
@@ -58,6 +59,7 @@ would be:
   hbase> t.get 'r1'
   hbase> t.get 'r1', {TIMERANGE => [ts1, ts2]}
   hbase> t.get 'r1', {COLUMN => 'c1'}
+  hbase> t.get 'r1', {EVENTUAL_CONSISTENCY => 'true'}
   hbase> t.get 'r1', {COLUMN => ['c1', 'c2', 'c3']}
   hbase> t.get 'r1', {COLUMN => 'c1', TIMESTAMP => ts1}
   hbase> t.get 'r1', {COLUMN => 'c1', TIMERANGE => [ts1, ts2], VERSIONS => 4}
