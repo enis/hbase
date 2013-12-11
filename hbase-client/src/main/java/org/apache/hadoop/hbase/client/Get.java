@@ -75,7 +75,7 @@ public class Get extends OperationWithAttributes
   private boolean closestRowBefore = false;
   private Map<byte [], NavigableSet<byte []>> familyMap =
     new TreeMap<byte [], NavigableSet<byte []>>(Bytes.BYTES_COMPARATOR);
-  private Consistency consistency = Consistency.STRONG;
+  private Consistency consistency = null;
 
   /**
    * Create a Get operation for the specified row.

@@ -129,6 +129,8 @@ public class HTable implements HTableInterface {
   private int operationTimeout;
   private final boolean cleanupPoolOnClose; // shutdown the pool in close()
   private final boolean cleanupConnectionOnClose; // close the connection in close()
+  private Consistency defaultConsistency = Consistency.STRONG;
+  private int primaryCallTimeout;
 
   /** The Async process for puts with autoflush set to false or multiputs */
   protected AsyncProcess<Object> ap;
@@ -328,6 +330,13 @@ public class HTable implements HTableInterface {
         HConstants.DEFAULT_HBASE_CLIENT_OPERATION_TIMEOUT):
       this.configuration.getInt(HConstants.HBASE_CLIENT_OPERATION_TIMEOUT,
         HConstants.DEFAULT_HBASE_CLIENT_OPERATION_TIMEOUT);
+    boolean eventualConsistency =
+        this.configuration.getBoolean("hbase.client.eventualConsistency", false);
+    if (eventualConsistency) {
+      this.defaultConsistency = Consistency.EVENTUAL;
+    }
+    this.primaryCallTimeout = this.configuration.getInt("hbase.client.primaryCallTimeout", 10);
+
     this.writeBufferSize = this.configuration.getLong(
         "hbase.client.write.buffer", 2097152);
     this.clearBufferOnFail = true;
@@ -746,6 +755,10 @@ public class HTable implements HTableInterface {
    */
   @Override
   public Result get(final Get get) throws IOException {
+    if (get.getConsistency() == null){
+      get.setConsistency(defaultConsistency);
+    }
+
     if (get.getConsistency() == Consistency.STRONG) {
       // Good old call.
       RegionServerCallable<Result> callable = new RegionServerCallable<Result>(this.connection,
@@ -766,11 +779,7 @@ public class HTable implements HTableInterface {
         HConstants.DEFAULT_HBASE_CLIENT_OPERATION_TIMEOUT);
 
     RpcRetryingCallerWithFallBack callable = new RpcRetryingCallerWithFallBack(
-        tableName, this.connection, get, pool, retries, callTimeout, 1);
-    // Question. Should the time before using a replica be:
-    //  a parameter of the get
-    //  a parameter of the table
-    //  both
+        tableName, this.connection, get, pool, retries, callTimeout, primaryCallTimeout);
     return callable.call();
   }
 
@@ -1540,6 +1549,22 @@ public class HTable implements HTableInterface {
 
   public int getOperationTimeout() {
     return operationTimeout;
+  }
+
+  public Consistency getDefaultConsistency() {
+    return defaultConsistency;
+  }
+
+  public void setDefaultConsistency(Consistency defaultConsistency) {
+    this.defaultConsistency = defaultConsistency;
+  }
+
+  public int getPrimaryCallTimeout() {
+    return primaryCallTimeout;
+  }
+
+  public void setPrimaryCallTimeout(int primaryCallTimeout) {
+    this.primaryCallTimeout = primaryCallTimeout;
   }
 
   /**

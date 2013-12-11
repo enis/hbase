@@ -13,14 +13,12 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.ipc.RemoteException;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -53,7 +51,9 @@ public class RpcRetryingCallerWithFallBack {
   private final AtomicBoolean finished = new AtomicBoolean(false);
 
   public RpcRetryingCallerWithFallBack(TableName tableName,
-                                       HConnection connection, final Get get, ExecutorService pool, int retries, int callTimeout, int timeBeforeReplicas) {
+                                       HConnection connection, final Get get,
+                                       ExecutorService pool, int retries, int callTimeout,
+                                       int timeBeforeReplicas) {
     this.tableName = tableName;
     this.connection = connection;
     this.conf = connection.getConfiguration();
@@ -112,20 +112,17 @@ public class RpcRetryingCallerWithFallBack {
     @Override
     public Result call() throws Exception {
       HRegionInfo mainHri = getHRegionInfo();
-      byte[] reg =  mainHri.getRegionName();
-      ServerName sn =  getLocation().getServerName();
-      LOG.info("Calling replica with id=" + id +", sn=" + sn+ ", " +  mainHri.getRegionInfoForReplica(id).getEncodedName() + " " + Arrays.toString(reg));
+      byte[] reg = mainHri.getRegionInfoForReplica(id) .getRegionName();
+      ServerName sn = getLocation().getServerName();
 
       Result r = ProtobufUtil.get(getConnection().getClient(sn), reg, get);
       // todo we should build the object only once, but we can't right now as the protobufUtils wants
       //  the destination server.
 
-      LOG.info("Got result from replica with id=" + id);
-
       if (id != HRegionInfo.REPLICA_ID_PRIMARY) {
-        LOG.debug("Found a result on a secondary replicas, id=" + id);
         r.setStale(true);
       }
+
       return r;
     }
   }
@@ -214,12 +211,11 @@ public class RpcRetryingCallerWithFallBack {
       throw new InterruptedIOException();
     }
 
-    LOG.info("Primary is not fast enough. Using one of the  " + secondaryReplicaCount + " secondary replicas. done=" + done);
-
     if (!done) {
       inProgress.add(mainReturn);
+      // If it fails on the main one, we try on all replica. This saves added latency if
+      //  the second replica is delayed as well, but, obviously, increase the load.
       for (int i = 1; i <= secondaryReplicaCount; i++) {
-        LOG.info("Primary is not fast enough. Using one of the  " + secondaryReplicaCount + " secondary replicas. done=" + done);
         ReplicaRegionServerCallable callOnReplica = new ReplicaRegionServerCallable(i);
         RetryingRPC retryingOnReplica = new RetryingRPC(callOnReplica);
         inProgress.add(pool.submit(retryingOnReplica));
@@ -232,7 +228,7 @@ public class RpcRetryingCallerWithFallBack {
           synchronized (finished) {
             finished.wait(100);
           }
-          // If one of the task succeeded we return the result. If not, we continue.
+          // If one of the tasks succeeded we return the result. If not, we continue.
           Iterator<Future<Result>> it = inProgress.iterator();
           while (it.hasNext()) {
             Future<Result> task = it.next();
@@ -240,12 +236,7 @@ public class RpcRetryingCallerWithFallBack {
               it.remove();
               if (!task.isCancelled()) {
                 try {
-                  Result r = task.get();
-                  finished.set(true); // We've got a result. Any other call can now stop.
-                  if (r.isStale()){
-                    LOG.info("Using a stale data for the result");
-                  }
-                  return r;
+                  return task.get();
                 } catch (ExecutionException e) {
                   LOG.info("Caught " + e.getMessage());
                   Throwable t = translateException(e);
@@ -254,10 +245,9 @@ public class RpcRetryingCallerWithFallBack {
                           EnvironmentEdgeManager.currentTimeMillis(), toString());
                   exceptions.add(qt);
                 } catch (CancellationException ignored) {
-                  // race condition: the task get cancelled before
+                  // Should not happen.
                 }
               }
-              break;
             }
           }
         } catch (InterruptedException e) {
@@ -265,11 +255,15 @@ public class RpcRetryingCallerWithFallBack {
         }
       }
     } finally {
+      // We've got a result or an unexpected exception. All calls can now stop.
+      finished.set(true);
+
+      // Let's cancel everything that is still running.
       for (Future<Result> task : inProgress) {
-        task.cancel(false); // We should interrupt as well; but let's play it safe at the beginning.
+        // We should interrupt as well; but let's play it safe at the beginning.
+        task.cancel(false);
       }
     }
-
 
     // if we're here, it means all attempts failed.
     throw new RetriesExhaustedException(retries, exceptions);
