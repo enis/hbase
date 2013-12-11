@@ -440,7 +440,7 @@ public class MetaReader {
     // Make a version of CollectingVisitor that collects HRegionInfo and ServerAddress
     CollectingVisitor<Pair<HRegionInfo, ServerName>> visitor =
         new CollectingVisitor<Pair<HRegionInfo, ServerName>>() {
-      private Pair<HRegionInfo, ServerName> current = null;
+      private List<Pair<HRegionInfo, ServerName>> current = null;
 
       @Override
       public boolean visit(Result r) throws IOException {
@@ -452,16 +452,22 @@ public class MetaReader {
         }
         if (!isInsideTable(hri, tableName)) return false;
         if (excludeOfflinedSplitParents && hri.isSplitParent()) return true;
-        ServerName sn = HRegionInfo.getServerName(r);
-        // Populate this.current so available when we call #add
-        this.current = new Pair<HRegionInfo, ServerName>(hri, sn);
+        Pair<HRegionInfo,ServerName[]> pair = HRegionInfo.getServerNamesFromMetaRowResult(r);
+        this.current = new ArrayList<Pair<HRegionInfo, ServerName>>(2);
+        int replicaId = 0;
+        for (ServerName sn : pair.getSecond()) {
+          // Populate this.current so available when we call #add
+          this.current.add(
+              new Pair<HRegionInfo, ServerName>(hri.getRegionInfoForReplica(replicaId), sn));
+          replicaId++;
+        }
         // Else call super and add this Result to the collection.
         return super.visit(r);
       }
 
       @Override
       void add(Result r) {
-        this.results.add(this.current);
+        this.results.addAll(this.current);
       }
     };
     fullScan(catalogTracker, visitor, getTableStartRowForMeta(tableName));

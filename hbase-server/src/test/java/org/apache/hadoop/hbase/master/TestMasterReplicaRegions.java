@@ -20,10 +20,12 @@ package org.apache.hadoop.hbase.master;
 
 import static org.junit.Assert.assertEquals;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -36,6 +38,7 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.CatalogTracker;
 import org.apache.hadoop.hbase.catalog.MetaReader;
+import org.apache.hadoop.hbase.catalog.MetaReader.Visitor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -67,6 +70,22 @@ public class TestMasterReplicaRegions {
   }
 
   @Test
+  public void testCreateTableWithSingleReplica() throws Exception {
+    final int numRegions = 3;
+    final int numReplica = 1;
+    final TableName table = TableName.valueOf("singleReplicaTable");
+    HTableDescriptor desc = new HTableDescriptor(table);
+    desc.setRegionReplication(numReplica);
+    desc.addFamily(new HColumnDescriptor("family"));
+    admin.createTable(desc, Bytes.toBytes("A"), Bytes.toBytes("Z"), numRegions);
+
+    CatalogTracker ct = new CatalogTracker(TEST_UTIL.getConfiguration());
+    validateNumberOfRowsInMeta(table, numRegions, ct);
+    List<HRegionInfo> hris = MetaReader.getTableRegions(ct, table);
+    assert(hris.size() == numRegions * numReplica);
+  }
+
+  @Test
   public void testCreateTableWithMultipleReplicas() throws Exception {
     final TableName table = TableName.valueOf("fooTable");
     final int numRegions = 3;
@@ -75,10 +94,12 @@ public class TestMasterReplicaRegions {
     desc.setRegionReplication(numReplica);
     desc.addFamily(new HColumnDescriptor("family"));
     admin.createTable(desc, Bytes.toBytes("A"), Bytes.toBytes("Z"), numRegions);
-    assert(admin.tableExists(table));
+
     CatalogTracker ct = new CatalogTracker(TEST_UTIL.getConfiguration());
+    validateNumberOfRowsInMeta(table, numRegions, ct);
+
     List<HRegionInfo> hris = MetaReader.getTableRegions(ct, table);
-    assert(hris.size() == numRegions); //only primary regions
+    assert(hris.size() == numRegions * numReplica);
     // check that the master created expected number of RegionState objects
     for (int i = 0; i < numRegions; i++) {
       for (int j = 0; j < numReplica; j++) {
@@ -194,5 +215,20 @@ public class TestMasterReplicaRegions {
       strBuf.append(" ____ " + r.toString());
     }
     return strBuf.toString();
+  }
+
+  private void validateNumberOfRowsInMeta(final TableName table, int numRegions, CatalogTracker ct)
+      throws IOException {
+    assert(admin.tableExists(table));
+    final AtomicInteger count = new AtomicInteger();
+    Visitor visitor = new Visitor() {
+      @Override
+      public boolean visit(Result r) throws IOException {
+        if (HRegionInfo.getHRegionInfo(r).getTable().equals(table)) count.incrementAndGet();
+        return true;
+      }
+    };
+    MetaReader.fullScan(ct, visitor);
+    assert(count.get() == numRegions);
   }
 }
