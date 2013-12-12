@@ -18,23 +18,17 @@
 
 package org.apache.hadoop.hbase.regionserver;
 
-import com.google.protobuf.ServiceException;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hbase.Cell;
+import java.io.IOException;
+
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.NotServingRegionException;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.TestMetaReaderEditor;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
-import org.apache.hadoop.hbase.coprocessor.ObserverContext;
-import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.RequestConverter;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos;
@@ -48,21 +42,14 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
+import com.google.protobuf.ServiceException;
 
 /**
  * Tests for region replicas. Sad that we cannot isolate these without bringing up a whole
  * cluster. See {@link TestRegionServerNoMaster}.
  */
 public class TestRegionReplicas {
-  private static final Log LOG = LogFactory.getLog(TestRegionReplicas.class);
-
-  private static final int NB_SERVERS = 2;
+  private static final int NB_SERVERS = 1;
   private static HTable table;
   private static final byte[] row = "TestRegionReplicas".getBytes();
 
@@ -72,52 +59,13 @@ public class TestRegionReplicas {
   private static final HBaseTestingUtility HTU = new HBaseTestingUtility();
   private static final byte[] f = HConstants.CATALOG_FAMILY;
 
-
-  /**
-   * This copro will slow down the main replica only.
-   */
-  public static class SlowMeCopro extends BaseRegionObserver {
-    static final AtomicLong sleepTime = new AtomicLong(0);
-    static final AtomicReference<CountDownLatch> cdl =
-        new AtomicReference<CountDownLatch>(new CountDownLatch(0));
-
-    public SlowMeCopro() {
-    }
-
-    @Override
-    public void preGetOp(final ObserverContext<RegionCoprocessorEnvironment> e,
-                         final Get get, final List<Cell> results) throws IOException {
-
-      if (e.getEnvironment().getRegion().getRegionInfo().isPrimaryReplica()) {
-        try {
-          if (sleepTime.get() > 0) {
-            LOG.info("Sleeping for " + sleepTime.get() + " ms");
-            Thread.sleep(sleepTime.get());
-          }
-          if (cdl.get().getCount() > 0){
-            LOG.info("Waiting for the counterCountDownLatch");
-            cdl.get().await(2, TimeUnit.MINUTES); // To help the tests to finish.
-            if (cdl.get().getCount() > 0){
-              throw new RuntimeException("Can't wait more");
-            }
-          }
-        } catch (InterruptedException e1) {
-          Thread.interrupted();
-        }
-      }else {
-        LOG.info("We're not the primary replicas."); // Hum. Do we have copro on the secondary region?
-      }
-    }
-  }
-
   @BeforeClass
   public static void before() throws Exception {
     HTU.startMiniCluster(NB_SERVERS);
+    final byte[] tableName = Bytes.toBytes(TestRegionReplicas.class.getSimpleName());
 
     // Create table then get the single region for our new table.
-    HTableDescriptor hdt = HTU.createTableDescriptor(TestRegionReplicas.class.getSimpleName());
-    hdt.addCoprocessor(SlowMeCopro.class.getName());
-    table = HTU.createTable(hdt, new byte[][]{f}, HTU.getConfiguration());
+    table = HTU.createTable(tableName, f);
 
     hriPrimary = table.getRegionLocation(row, false).getRegionInfo();
 
@@ -214,9 +162,7 @@ public class TestRegionReplicas {
     }
   }
 
-  /**
-   * Tests that the meta location is saved for secondary regions
-   */
+  /** Tests that the meta location is saved for secondary regions */
   @Test(timeout = 60000)
   public void testRegionReplicaUpdatesMetaLocation() throws Exception {
     openRegion(hriSecondary);
@@ -226,7 +172,7 @@ public class TestRegionReplicas {
       TestMetaReaderEditor.assertMetaLocation(meta, hriPrimary.getRegionName()
           , getRS().getServerName(), -1, 1, false);
     } finally {
-      if (meta != null) meta.close();
+      if (meta != null ) meta.close();
       closeRegion(hriSecondary);
     }
   }
@@ -271,7 +217,7 @@ public class TestRegionReplicas {
     byte[] row = Bytes.toBytes(String.valueOf(value));
     Get get = new Get(row);
     ClientProtos.GetRequest getReq = RequestConverter.buildGetRequest(info.getRegionName(), get);
-    ClientProtos.GetResponse getResp = getRS().get(null, getReq);
+    ClientProtos.GetResponse getResp =  getRS().get(null, getReq);
     Result result = ProtobufUtil.toResult(getResp.getResult());
     if (expect) {
       Assert.assertArrayEquals(row, result.getValue(f, null));

@@ -942,7 +942,9 @@ public final class ProtobufUtil {
     if (get.isClosestRowBefore()){
       builder.setClosestRowBefore(true);
     }
-    builder.setConsistency(toConsistency(get.getConsistency()));
+    if (get.getConsistency() != null && get.getConsistency() != Consistency.STRONG){
+      builder.setConsistency(toConsistency(get.getConsistency()));
+    }
     return builder.build();
   }
 

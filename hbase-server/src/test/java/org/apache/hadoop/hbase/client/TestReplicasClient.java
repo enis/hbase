@@ -10,6 +10,7 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MasterNotRunningException;
+import org.apache.hadoop.hbase.NotServingRegionException;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
@@ -17,7 +18,6 @@ import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.protobuf.RequestConverter;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
-import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.zookeeper.ZKAssign;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -49,6 +49,7 @@ public class TestReplicasClient {
   private static final HBaseTestingUtility HTU = new HBaseTestingUtility();
   private static final byte[] f = HConstants.CATALOG_FAMILY;
 
+  private final static int REFRESH_PERIOD = 1000;
 
   /**
    * This copro will slow down the main replica only.
@@ -89,6 +90,9 @@ public class TestReplicasClient {
 
   @BeforeClass
   public static void before() throws Exception {
+    // enable store file refreshing
+    HTU.getConfiguration().setInt(HConstants.REGIONSERVER_STOREFILE_REFRESH_PERIOD, REFRESH_PERIOD);
+
     HTU.startMiniCluster(NB_SERVERS);
 
     // Create table then get the single region for our new table.
@@ -137,7 +141,7 @@ public class TestReplicasClient {
     // Clean the state if the test failed before cleaning the znode
     // It does not manage all bad failures, so if there are multiple failures, only
     //  the first one should be looked at.
-    }
+  }
 
   private HRegionServer getRS() {
     return HTU.getMiniHBaseCluster().getRegionServer(0);
@@ -162,7 +166,7 @@ public class TestReplicasClient {
     AdminProtos.CloseRegionResponse responseClose = getRS().closeRegion(null, crr);
     Assert.assertTrue(responseClose.getClosed());
 
-    checkRegionIsClosed(hri);
+    checkRegionIsClosed(hri.getEncodedName());
 
     ZKAssign.deleteClosedNode(HTU.getZooKeeperWatcher(), hri.getEncodedName());
   }
@@ -176,19 +180,20 @@ public class TestReplicasClient {
     Assert.assertTrue(ZKAssign.deleteOpenedNode(HTU.getZooKeeperWatcher(), hri.getEncodedName()));
   }
 
-
-  private void checkRegionIsClosed(HRegionInfo hri) throws Exception {
+  private void checkRegionIsClosed(String encodedRegionName) throws Exception {
 
     while (!getRS().getRegionsInTransitionInRS().isEmpty()) {
       Thread.sleep(1);
     }
 
-    Assert.assertTrue(getRS().getOnlineRegion(hri.getEncodedNameAsBytes()) == null);
+    try {
+      Assert.assertFalse(getRS().getRegionByEncodedName(encodedRegionName).isAvailable());
+    } catch (NotServingRegionException expected) {
+      // That's how it work: if the region is closed we have an exception.
+    }
 
-    Threads.sleep(10000);
     // We don't delete the znode here, because there is not always a znode.
   }
-
 
   @Test(timeout = 60000)
   public void testUseRegionWithoutReplica() throws Exception {
@@ -204,24 +209,22 @@ public class TestReplicasClient {
     byte[] b1 = "testLocations".getBytes();
     HConnection hc = HTU.getHBaseAdmin().getConnection();
 
-    hc.clearRegionCache();
-    HRegionLocation hrl = hc.getRegionLocation(table.getName(), b1, true);
-    Assert.assertTrue(hrl.getServerName() + ", getSecondaryServers" +  hrl.getSecondaryServers(), hrl.getSecondaryServers() == null || hrl.getSecondaryServers().isEmpty());
-
-    hc.clearRegionCache();
-    hrl = hc.getRegionLocation(table.getName(), b1, false);
-    Assert.assertTrue(hrl.getSecondaryServers() == null || hrl.getSecondaryServers().isEmpty());
-
-    // Same tests, with the data in the cache this time.
-    hrl = hc.getRegionLocation(table.getName(), b1, false);
-    Assert.assertTrue(hrl.getSecondaryServers() == null || hrl.getSecondaryServers().isEmpty());
-
-    hrl = hc.getRegionLocation(table.getName(), b1, true);
-    Assert.assertTrue(hrl.getSecondaryServers() == null || hrl.getSecondaryServers().isEmpty());
-
     openRegion(hriSecondary);
     try {
       hc.clearRegionCache();
+      HRegionLocation hrl = hc.getRegionLocation(table.getName(), b1, false);
+      Assert.assertTrue(hrl.getSecondaryServers() != null);
+      Assert.assertTrue(hrl.getSecondaryServers().size() == 1);
+
+      hrl = hc.getRegionLocation(table.getName(), b1, true);
+      Assert.assertTrue(hrl.getSecondaryServers() != null);
+      Assert.assertTrue(hrl.getSecondaryServers().size() == 1);
+
+      hc.clearRegionCache();
+      hrl = hc.getRegionLocation(table.getName(), b1, true);
+      Assert.assertTrue(hrl.getSecondaryServers() != null);
+      Assert.assertTrue(hrl.getSecondaryServers().size() == 1);
+
       hrl = hc.getRegionLocation(table.getName(), b1, false);
       Assert.assertTrue(hrl.getSecondaryServers() != null);
       Assert.assertTrue(hrl.getSecondaryServers().size() == 1);
@@ -379,7 +382,7 @@ public class TestReplicasClient {
       LOG.info("sleep and is not stale done");
 
       // But if we ask for stale we will get it
-      SlowMeCopro.sleepTime.set(2000); // todo: ad cdl does not work here. Why?
+      SlowMeCopro.sleepTime.set(2000); // todo: add cdl does not work here. Why?
       g = new Get(b1);
       g.setConsistency(Consistency.EVENTUAL);
       r = table.get(g);
@@ -410,6 +413,7 @@ public class TestReplicasClient {
 
       HTU.getHBaseAdmin().flush(table.getTableName());
       LOG.info("flush done");
+      Thread.sleep(1000 + REFRESH_PERIOD * 2);
 
       // get works and is not stale
       SlowMeCopro.cdl.set(new CountDownLatch(1));
@@ -417,7 +421,7 @@ public class TestReplicasClient {
       g.setConsistency(Consistency.EVENTUAL);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
-      //  Assert.assertFalse(r.isEmpty()); // todo: how can we know that the flush was seen by the replica?
+      Assert.assertFalse(r.isEmpty());
       SlowMeCopro.cdl.get().countDown();
       LOG.info("stale done");
 
@@ -428,7 +432,7 @@ public class TestReplicasClient {
       g.setConsistency(Consistency.EVENTUAL);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
-      // Assert.assertTrue(r.getExists());   // todo: how can we know that the flush was seen by the replica?
+      Assert.assertTrue(r.getExists());
       SlowMeCopro.cdl.get().countDown();
       LOG.info("exists stale after flush done");
 

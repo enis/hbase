@@ -2586,7 +2586,7 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
     return getRegionByEncodedName(encodedRegionName);
   }
 
-  protected HRegion getRegionByEncodedName(String encodedRegionName)
+  public HRegion getRegionByEncodedName(String encodedRegionName)
     throws NotServingRegionException {
     HRegion region = this.onlineRegions.get(encodedRegionName);
     if (region == null) {
