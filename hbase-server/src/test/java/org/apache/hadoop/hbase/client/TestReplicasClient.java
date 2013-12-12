@@ -17,6 +17,7 @@ import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.protobuf.RequestConverter;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
+import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.zookeeper.ZKAssign;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -136,8 +137,7 @@ public class TestReplicasClient {
     // Clean the state if the test failed before cleaning the znode
     // It does not manage all bad failures, so if there are multiple failures, only
     //  the first one should be looked at.
-    ZKAssign.deleteNodeFailSilent(HTU.getZooKeeperWatcher(), hriPrimary);
-  }
+    }
 
   private HRegionServer getRS() {
     return HTU.getMiniHBaseCluster().getRegionServer(0);
@@ -185,6 +185,7 @@ public class TestReplicasClient {
 
     Assert.assertTrue(getRS().getOnlineRegion(hri.getEncodedNameAsBytes()) == null);
 
+    Threads.sleep(10000);
     // We don't delete the znode here, because there is not always a znode.
   }
 
@@ -200,12 +201,12 @@ public class TestReplicasClient {
 
   @Test(timeout = 60000)
   public void testLocations() throws Exception {
-    byte[] b1 = "testUseRegionWithReplica".getBytes();
+    byte[] b1 = "testLocations".getBytes();
     HConnection hc = HTU.getHBaseAdmin().getConnection();
 
     hc.clearRegionCache();
     HRegionLocation hrl = hc.getRegionLocation(table.getName(), b1, true);
-    Assert.assertTrue(hrl.getSecondaryServers() == null || hrl.getSecondaryServers().isEmpty());
+    Assert.assertTrue(hrl.getServerName() + ", getSecondaryServers" +  hrl.getSecondaryServers(), hrl.getSecondaryServers() == null || hrl.getSecondaryServers().isEmpty());
 
     hc.clearRegionCache();
     hrl = hc.getRegionLocation(table.getName(), b1, false);
