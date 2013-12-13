@@ -286,7 +286,7 @@
 <tr>
   <td><%= escapeXml(Bytes.toStringBinary(regionInfo.getRegionName())) %></td>
   <%
-  boolean primary = regionInfo.getReplicaId() == 0;
+  boolean primary = regionInfo.getReplicaId() == HRegionInfo.REPLICA_ID_PRIMARY;
   %>
   <%
   if (urlRegionServer != null) {

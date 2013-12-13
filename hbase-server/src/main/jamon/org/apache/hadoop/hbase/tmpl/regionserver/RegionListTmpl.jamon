@@ -87,6 +87,7 @@
             <th>Region Name</th>
             <th>Start Key</th>
             <th>End Key</th>
+            <th>Primary-replica?</th>
         </tr>
 
         <%for HRegionInfo r: onlineRegions %>
@@ -94,6 +95,7 @@
             <td><% r.getRegionNameAsString() %></td>
             <td><% Bytes.toStringBinary(r.getStartKey()) %></td>
             <td><% Bytes.toStringBinary(r.getEndKey()) %></td>
+            <td><% (r.getReplicaId() == HRegionInfo.REPLICA_ID_PRIMARY) %></td>
         </tr>
         </%for>
     </table>
