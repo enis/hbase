@@ -1007,7 +1007,7 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
       if (ioe instanceof YouAreDeadException) {
         // This will be caught and handled as a fatal error in run()
         throw ioe;
-      }      /* Seems to hang when a test fails.
+      }
       LOG.info("  ***********", ioe);
       // Couldn't connect to the master, get location from zk and reconnect
       // Method blocks until new master is found or we are stopped
@@ -1015,7 +1015,7 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
         createRegionServerStatusStub();
       if (p != null) {
         this.rssStub = p.getSecond();
-      }   */
+      }
     }
   }
 
