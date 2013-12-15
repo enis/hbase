@@ -26,10 +26,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NavigableMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.NavigableMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -66,26 +66,35 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
    * To be used by LoadBalancers.
    */
   protected static class Cluster {
+    String[] racks;
+    String[] hosts; // ServerName uniquely identifies a region server. multiple RS can run on the same host
     ServerName[] servers;
     ArrayList<String> tables;
     HRegionInfo[] regions;
     Deque<RegionLoad>[] regionLoads;
-    int[][] regionLocations; //regionIndex -> list of serverIndex sorted by locality
 
+    int[][] regionLocations; //regionIndex -> list of serverIndex sorted by locality
+    int[]   serverIndexToHostIndex;      //serverIndex -> host index
     int[][] regionsPerServer;            //serverIndex -> region list
+    int[][] serversPerHost;              //hostIndex -> list of server indexes
     int[]   regionIndexToServerIndex;    //regionIndex -> serverIndex
     int[]   initialRegionIndexToServerIndex;    //regionIndex -> serverIndex (initial cluster state)
     int[]   regionIndexToTableIndex;     //regionIndex -> tableIndex
     int[][] numRegionsPerServerPerTable; //serverIndex -> tableIndex -> # regions
     int[]   numMaxRegionsPerTable;       //tableIndex -> max number of regions in a single RS
+    int[]   regionIndexToPrimaryIndex;   //regionIndex -> regionIndex of the primary
 
     Integer[] serverIndicesSortedByRegionCount;
 
+    Map<HRegionInfo, Integer> regionsToIndex;
+    Map<String, Integer> hostsToIndex;
     Map<String, Integer> serversToIndex;
     Map<String, Integer> tablesToIndex;
     Map<Integer, Set<HRegionInfo>> serverToReplicaMap;
     Map<String, Set<HRegionInfo>> rackToReplicaMap;
 
+    int numRacks;
+    int numHosts;
     int numRegions;
     int numServers;
     int numTables;
@@ -93,30 +102,33 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     int numMovedRegions = 0; //num moved regions from the initial configuration
     int numMovedMetaRegions = 0;       //num of moved regions that are META
     RackManager rackManager;
-    int uniqueRacks;
+
 
     protected Cluster(Map<ServerName, List<HRegionInfo>> clusterState,  Map<String, Deque<RegionLoad>> loads,
         RegionLocationFinder regionFinder, RackManager rackManager) {
 
+      hostsToIndex = new HashMap<String, Integer>();
       serversToIndex = new HashMap<String, Integer>();
       tablesToIndex = new HashMap<String, Integer>();
       //regionsToIndex = new HashMap<HRegionInfo, Integer>();
 
       //TODO: We should get the list of tables from master
       tables = new ArrayList<String>();
-
-
-      numRegions = 0;
       this.rackManager = rackManager;
 
-      int serverIndex = 0;
-
+      int numPrimaryRegions = 0; //TODO
+      List<List<Integer>> serversPerHostList = new ArrayList<List<Integer>>();
       // Use servername and port as there can be dead servers in this list. We want everything with
       // a matching hostname and port to have the same index.
       for (ServerName sn:clusterState.keySet()) {
         if (serversToIndex.get(sn.getHostAndPort()) == null) {
-          serversToIndex.put(sn.getHostAndPort(), serverIndex++);
+          serversToIndex.put(sn.getHostAndPort(), numServers++);
         }
+        if (!hostsToIndex.containsKey(sn.getHostname())) {
+          hostsToIndex.put(sn.getHostname(), numHosts++);
+          serversPerHostList.add(new ArrayList<Integer>(1));
+        }
+        serversPerHostList.get(numHosts-1).add(numServers-1);
       }
 
       // Count how many regions there are.
@@ -124,24 +136,27 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         numRegions += entry.getValue().size();
       }
 
-      numServers = serversToIndex.size();
       regionsPerServer = new int[serversToIndex.size()][];
+      serversPerHost = new int[numHosts][];
 
+      regionsToIndex = new HashMap<HRegionInfo, Integer>(numRegions);
       servers = new ServerName[numServers];
       regions = new HRegionInfo[numRegions];
       regionIndexToServerIndex = new int[numRegions];
       initialRegionIndexToServerIndex = new int[numRegions];
       regionIndexToTableIndex = new int[numRegions];
+      regionIndexToPrimaryIndex = new int[numRegions];
       regionLoads = new Deque[numRegions];
       regionLocations = new int[numRegions][];
       serverIndicesSortedByRegionCount = new Integer[numServers];
       serverToReplicaMap = new HashMap<Integer, Set<HRegionInfo>>();
       rackToReplicaMap = new HashMap<String, Set<HRegionInfo>>();
+      serverIndexToHostIndex = new int[numServers];
 
       int tableIndex = 0, regionIndex = 0, regionPerServerIndex = 0;
 
       for (Entry<ServerName, List<HRegionInfo>> entry : clusterState.entrySet()) {
-        serverIndex = serversToIndex.get(entry.getKey().getHostAndPort());
+        int serverIndex = serversToIndex.get(entry.getKey().getHostAndPort());
 
         // keep the servername if this is the first server name for this hostname
         // or this servername has the newest startcode.
@@ -153,18 +168,27 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         regionsPerServer[serverIndex] = new int[entry.getValue().size()];
         serverIndicesSortedByRegionCount[serverIndex] = serverIndex;
       }
-      Set<String>racks = new HashSet<String>();
+
+      hosts = new String[numHosts];
+      for (Entry<String, Integer> entry : hostsToIndex.entrySet()) {
+        hosts[entry.getValue()] = entry.getKey();
+      }
+
+      Set<String> racks = new HashSet<String>();
       for (Entry<ServerName, List<HRegionInfo>> entry : clusterState.entrySet()) {
         String rack = null;
         if (rackManager != null) {
           rack = rackManager.getRack(entry.getKey());
           if (!racks.contains(rack)) {
-            uniqueRacks++;
+            numRacks++;
             racks.add(rack);
           }
         }
-        serverIndex = serversToIndex.get(entry.getKey().getHostAndPort());
+        int serverIndex = serversToIndex.get(entry.getKey().getHostAndPort());
         regionPerServerIndex = 0;
+
+        int hostIndex = hostsToIndex.get(entry.getKey().getHostname());
+        serverIndexToHostIndex[serverIndex] = hostIndex;
 
         for (HRegionInfo region : entry.getValue()) {
           String tableName = region.getTable().getNameAsString();
@@ -175,6 +199,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
             tablesToIndex.put(tableName, tableIndex++);
           }
 
+          regionsToIndex.put(region, regionIndex);
           regions[regionIndex] = region;
           regionIndexToServerIndex[regionIndex] = serverIndex;
           initialRegionIndexToServerIndex[regionIndex] = serverIndex;
@@ -225,6 +250,13 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         }
       }
 
+      for (int i = 0; i < serversPerHostList.size(); i++) {
+        serversPerHost[i] = new int[serversPerHostList.get(i).size()];
+        for (int j = 0; j < serversPerHost[i].length; j++) {
+          serversPerHost[i][j] = serversPerHostList.get(i).get(j);
+        }
+      }
+
       numTables = tables.size();
       numRegionsPerServerPerTable = new int[numServers][numTables];
 
@@ -239,11 +271,20 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       }
 
       numMaxRegionsPerTable = new int[numTables];
-      for (serverIndex = 0 ; serverIndex < numRegionsPerServerPerTable.length; serverIndex++) {
+      for (int serverIndex = 0 ; serverIndex < numRegionsPerServerPerTable.length; serverIndex++) {
         for (tableIndex = 0 ; tableIndex < numRegionsPerServerPerTable[serverIndex].length; tableIndex++) {
           if (numRegionsPerServerPerTable[serverIndex][tableIndex] > numMaxRegionsPerTable[tableIndex]) {
             numMaxRegionsPerTable[tableIndex] = numRegionsPerServerPerTable[serverIndex][tableIndex];
           }
+        }
+      }
+
+      for (int i = 0; i < regions.length; i ++) {
+        HRegionInfo info = regions[i];
+        if (info.isPrimaryReplica()) {
+          regionIndexToPrimaryIndex[i] = i;
+        } else {
+          regionIndexToPrimaryIndex[i] = regionsToIndex.get(info.getPrimaryRegionInfo());
         }
       }
     }
@@ -299,7 +340,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         regionSet.add(regions[region]);
       }
     }
-    
+
 
     /**
      * Return true if the placement of region on server would lower the availability
@@ -317,7 +358,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       //TODO: add same host checks (if more than 1 host,then don't place replicas on the same host)
       // also availability would be lowered if the balancer chooses the node to move to a
       // node in the same rack (if there were multiple racks to choose from)
-      if (uniqueRacks > 1) {
+      if (numRacks > 1) {
         String destRack = rackManager.getRack(servers[server]);
         if (rackToReplicaMap.get(destRack).contains(hri)) {
           // the destination rack contains a replica (primary or secondary)
@@ -355,6 +396,21 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         for (int serverIndex = 0 ; serverIndex < numRegionsPerServerPerTable.length; serverIndex++) {
           if (numRegionsPerServerPerTable[serverIndex][tableIndex] > numMaxRegionsPerTable[tableIndex]) {
             numMaxRegionsPerTable[tableIndex] = numRegionsPerServerPerTable[serverIndex][tableIndex];
+          }
+        }
+      }
+
+      // check for replicas
+      int oldHostIndex = serverIndexToHostIndex[oldServerIndex];
+      int newHostIndex = serverIndexToHostIndex[newServerIndex];
+      if (oldHostIndex != newHostIndex) {
+        int[][] serversPerRegionReplica;
+
+        // regions[regionIndex];
+        // check whether there is a replica of the same region in the same host
+        for (int serverIndex : serversPerHost[oldHostIndex]) {
+          for (int r : regionsPerServer[serverIndex]) {
+
           }
         }
       }
@@ -468,10 +524,12 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     return this.config;
   }
 
+  @Override
   public void setClusterStatus(ClusterStatus st) {
     // Not used except for the StocasticBalancer
   }
 
+  @Override
   public void setMasterServices(MasterServices masterServices) {
     this.services = masterServices;
   }
@@ -521,6 +579,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
    * @return map of server to the regions it should take, or null if no
    *         assignment is possible (ie. no regions or no servers)
    */
+  @Override
   public Map<ServerName, List<HRegionInfo>> roundRobinAssignment(List<HRegionInfo> regions,
       List<ServerName> servers) {
     metricsBalancer.incrMiscInvocations();
@@ -666,6 +725,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
    * @param servers
    * @return map of regions to the server it should be assigned to
    */
+  @Override
   public Map<HRegionInfo, ServerName> immediateAssignment(List<HRegionInfo> regions,
       List<ServerName> servers) {
     metricsBalancer.incrMiscInvocations();
@@ -680,6 +740,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
   /**
    * Used to assign a single region to a random server.
    */
+  @Override
   public ServerName randomAssignment(HRegionInfo regionInfo, List<ServerName> servers) {
     metricsBalancer.incrMiscInvocations();
 
@@ -720,6 +781,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
    * @param servers available servers
    * @return map of servers and regions to be assigned to them
    */
+  @Override
   public Map<ServerName, List<HRegionInfo>> retainAssignment(Map<HRegionInfo, ServerName> regions,
       List<ServerName> servers) {
     // Update metrics

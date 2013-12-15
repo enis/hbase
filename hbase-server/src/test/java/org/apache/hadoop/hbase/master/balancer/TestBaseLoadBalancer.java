@@ -224,7 +224,7 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     clusterState.put(servers[0], list0); //servers[0] hosts region1
     clusterState.put(servers[1], list1); //servers[1] hosts replica_of_region1
     clusterState.put(servers[2], list2); //servers[2] hosts region2
-    // create a cluster with the above clusterState. The way in which the 
+    // create a cluster with the above clusterState. The way in which the
     // cluster is created (constructor code) would make sure the indices of
     // the servers are in the order in which it is inserted in the clusterState
     // map (linkedhashmap is important). A similar thing applies to the region lists
@@ -291,7 +291,7 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     clusterState.put(servers[0], list0); //servers[0] hosts region1
     clusterState.put(servers[1], list1); //servers[1] hosts replica_of_region1
     clusterState.put(servers[2], list2); //servers[2] hosts region2
-    // create a cluster with the above clusterState. The way in which the 
+    // create a cluster with the above clusterState. The way in which the
     // cluster is created (constructor code) would make sure the indices of
     // the servers are in the order in which it is inserted in the clusterState
     // map (linkedhashmap is important).
@@ -376,6 +376,20 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
           assertEquals(address.getHostname(), assignedTo.getHostname());
         }
       }
+    }
+  }
+
+  private void testClusterRegionIndexToPrimaryIndex() {
+    for (int[] mock : regionsAndServersMocks) {
+      LOG.debug("testClusterRegionIndexToPrimaryIndex with " + mock[0] + " regions and " + mock[1] + " servers");
+      List<HRegionInfo> regions = randomRegions(mock[0]);
+      List<ServerAndLoad> servers = randomServers(mock[1], 0);
+      List<ServerName> list = getListOfServerNames(servers);
+
+      //TODO
+
+      returnRegions(regions);
+      returnServers(list);
     }
   }
 
