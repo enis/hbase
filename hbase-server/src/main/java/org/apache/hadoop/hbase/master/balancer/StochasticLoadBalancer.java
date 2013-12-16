@@ -139,7 +139,8 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     pickers = new RegionPicker[] {
       new RandomRegionPicker(),
       new LoadPicker(),
-      localityPicker
+      localityPicker,
+      new RegionReplicaHostPicker(),
     };
 
     regionLoadFunctions = new CostFromRegionLoadFunction[] {
@@ -154,6 +155,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       new MoveCostFunction(conf),
       localityCost,
       new TableSkewCostFunction(conf),
+      new RegionReplicaHostCostFunction(conf),
       regionLoadFunctions[0],
       regionLoadFunctions[1],
       regionLoadFunctions[2],
@@ -382,6 +384,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
   }
 
   abstract static class RegionPicker {
+    // <<leftServer,leftRegion>,<rightServer,rightRegion>
     abstract Pair<Pair<Integer, Integer>, Pair<Integer, Integer>> pick(Cluster cluster);
 
     /**
@@ -413,6 +416,15 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
       return RANDOM.nextInt(cluster.numServers);
     }
+
+    protected int pickRandomHost(Cluster cluster) {
+      if (cluster.numHosts < 1) {
+        return -1;
+      }
+
+      return RANDOM.nextInt(cluster.numHosts);
+    }
+
     protected int pickOtherRandomServer(Cluster cluster, int serverIndex) {
       if (cluster.numServers < 2) {
         return -1;
@@ -421,6 +433,18 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
         int otherServerIndex = pickRandomServer(cluster);
         if (otherServerIndex != serverIndex) {
           return otherServerIndex;
+        }
+      }
+    }
+
+    protected int pickOtherRandomHost(Cluster cluster, int hostIndex) {
+      if (cluster.numHosts < 2) {
+        return -1;
+      }
+      while (true) {
+        int otherHostIndex = pickRandomHost(cluster);
+        if (otherHostIndex != hostIndex) {
+          return otherHostIndex;
         }
       }
     }
@@ -574,6 +598,91 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
   }
 
   /**
+   * Generates candidates which moves the replicas out of the region server
+   * for
+   */
+  public static class RegionReplicaHostPicker extends RegionPicker {
+
+    RandomRegionPicker randomPicker = new RandomRegionPicker();
+
+    @Override
+    Pair<Pair<Integer, Integer>, Pair<Integer, Integer>> pick(Cluster cluster) {
+
+      int hostIndex = pickRandomHost(cluster);
+
+      if (cluster.numHosts <= 1 || hostIndex == -1) {
+        return new Pair<Pair<Integer, Integer>, Pair<Integer, Integer>>(
+            new Pair<Integer, Integer>(-1,-1),
+            new Pair<Integer, Integer>(-1,-1)
+        );
+      }
+
+      HashMap<Integer, Integer> numReplicaCounts = new HashMap<Integer, Integer>();
+
+      // find the regions in the host with its replicas in the same host
+      int numRegionsWithReplica = 0;
+      for (int j = 0; j < cluster.serversPerHost[hostIndex].length; j++) {
+        for (int k = 0; k < cluster.regionsPerServer[cluster.serversPerHost[hostIndex][j]].length; k++) {
+          int region = cluster.regionsPerServer[cluster.serversPerHost[hostIndex][j]][k];
+          int primaryIndex = cluster.regionIndexToPrimaryIndex[region];
+          Integer count = numReplicaCounts.get(primaryIndex);
+          int val = count == null ? 1 : count + 1;
+          numReplicaCounts.put(primaryIndex, val);
+          if (val == 2) {
+            numRegionsWithReplica++;
+          }
+        }
+      }
+
+      // randomly select one primaryIndex out of all region replicas in the same host
+      int primaryIndex = -1;
+      if (numRegionsWithReplica > 0) {
+        int randomIndex = RANDOM.nextInt(numRegionsWithReplica);
+        int index = 0;
+        for (Entry<Integer, Integer> entry : numReplicaCounts.entrySet()) {
+          if (entry.getValue() > 1) {
+            if (index++ == randomIndex) {
+              primaryIndex = entry.getKey();
+              break;
+            }
+          }
+        }
+      }
+
+      if (primaryIndex == -1) {
+        // default to randompicker
+        randomPicker.pick(cluster);
+      }
+
+      int regionIndex = -1;
+      int serverIndex = -1;
+      // move the region replica out of the host
+      for (int j = 0; j < cluster.serversPerHost[hostIndex].length; j++) {
+        for (int k = 0; k < cluster.regionsPerServer[cluster.serversPerHost[hostIndex][j]].length; k++) {
+          int region = cluster.regionsPerServer[cluster.serversPerHost[hostIndex][j]][k];
+          if (primaryIndex == cluster.regionIndexToPrimaryIndex[region]) {
+            // always move the secondary, not the primary
+            if (!cluster.regions[region].isPrimaryReplica()) {
+              regionIndex = region;
+              serverIndex = cluster.serversPerHost[hostIndex][j];
+              break;
+            }
+          }
+        }
+      }
+
+      int toHostIndex = pickOtherRandomHost(cluster, hostIndex);
+      int toServerIndex = cluster.serversPerHost[toHostIndex]
+          [RANDOM.nextInt(cluster.serversPerHost[toHostIndex].length)];
+
+      return new Pair<Pair<Integer, Integer>, Pair<Integer, Integer>>(
+          new Pair<Integer, Integer>(serverIndex, regionIndex),
+          new Pair<Integer, Integer>(toServerIndex, -1)
+          );
+    }
+  }
+
+  /**
    * Base class of StochasticLoadBalancer's Cost Functions.
    */
   public abstract static class CostFunction {
@@ -621,8 +730,6 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       double scaled =  scale(0, max, totalCost);
       return scaled;
     }
-
-
 
     private double getSum(double[] stats) {
       double total = 0;
@@ -840,6 +947,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     }
 
 
+    @Override
     double cost(Cluster cluster) {
       if (clusterStatus == null || loads == null) {
         return 0;
@@ -907,6 +1015,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     }
 
 
+    @Override
     protected double getCostFromRl(RegionLoad rl) {
       return rl.getReadRequestsCount();
     }
@@ -927,6 +1036,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       this.setMultiplier(conf.getFloat(WRITE_REQUEST_COST_KEY, DEFAULT_WRITE_REQUEST_COST));
     }
 
+    @Override
     protected double getCostFromRl(RegionLoad rl) {
       return rl.getWriteRequestsCount();
     }
@@ -972,4 +1082,63 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       return rl.getStorefileSizeMB();
     }
   }
+
+  public static class RegionReplicaHostCostFunction extends CostFunction {
+    private static final String REGION_REPLICA_HOST_KEY =
+        "hbase.master.balancer.stochastic.regionReplicaHostKey";
+    private static final float DEFAULT_REGION_REPLICA_HOST_KEY = 10000;
+
+    public RegionReplicaHostCostFunction(Configuration conf) {
+      super(conf);
+      this.setMultiplier(conf.getFloat(REGION_REPLICA_HOST_KEY, DEFAULT_REGION_REPLICA_HOST_KEY));
+    }
+
+    @Override
+    double cost(Cluster cluster) {
+      int[] numReplicaPairsPerHost; // number of pairs of replicas of the same region per host
+
+      numReplicaPairsPerHost = new int[cluster.numHosts];
+
+      long totalCost = 0;
+      for (int i = 0 ; i < cluster.serversPerHost.length; i++) {
+        HashMap<Integer, Integer> numReplicaCounts = new HashMap<Integer, Integer>();
+        for (int j = 0; j < cluster.serversPerHost[i].length; j++) {
+          for (int k = 0; k < cluster.regionsPerServer[cluster.serversPerHost[i][j]].length; k++) {
+            int region = cluster.regionsPerServer[cluster.serversPerHost[i][j]][k];
+            int primaryIndex = cluster.regionIndexToPrimaryIndex[region];
+            Integer count = numReplicaCounts.get(primaryIndex);
+            int val = count == null ? 1 : count + 1;
+            numReplicaCounts.put(primaryIndex, val);
+          }
+        }
+        for (Entry<Integer, Integer> entry : numReplicaCounts.entrySet()) {
+          if (entry.getValue() > 1) {
+            totalCost += (entry.getValue() - 1) * (entry.getValue() - 1);
+          }
+        }
+        numReplicaPairsPerHost[i] = (int)totalCost;
+      }
+
+      // TODO: this is expensive do it only once for the initial cluster.
+      // max cost is the case where every region replica is hosted together
+      HashMap<Integer, Integer> replicationPerPrimary = new HashMap<Integer, Integer>();
+      for (int i = 0; i < cluster.regions.length; i++) {
+        HRegionInfo info = cluster.regions[i];
+        int primaryIndex = cluster.regionIndexToPrimaryIndex[i];
+        Integer replication = replicationPerPrimary.get(primaryIndex);
+        if (replication == null) replication = 1;
+        replicationPerPrimary.put(primaryIndex, Math.max(replication, info.getReplicaId() + 1));
+      }
+
+      long maxCost = 0;
+      for (Entry<Integer, Integer> entry : replicationPerPrimary.entrySet()) {
+        maxCost += (entry.getValue() - 1) * (entry.getValue() - 1);
+      }
+
+      return scale(0, maxCost, totalCost);
+    }
+
+  }
+
+  //TODO RegionReplicaRackCostFunction
 }
