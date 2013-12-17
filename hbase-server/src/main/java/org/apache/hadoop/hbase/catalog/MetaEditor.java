@@ -481,8 +481,9 @@ public class MetaEditor {
       List<HRegionInfo> regionsInfo) throws IOException {
     List<Delete> deletes = new ArrayList<Delete>(regionsInfo.size());
     for (HRegionInfo hri: regionsInfo) {
-      checkReplicaID(hri);
-      deletes.add(new Delete(hri.getRegionName()));
+      if (hri.getReplicaId() == HRegionInfo.REPLICA_ID_PRIMARY) {
+        deletes.add(new Delete(hri.getRegionName()));
+      }
     }
     deleteFromMetaTable(catalogTracker, deletes);
     LOG.info("Deleted " + regionsInfo);
