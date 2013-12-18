@@ -45,6 +45,8 @@ import org.apache.hadoop.hbase.ServerLoad;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.net.DNSToSwitchMapping;
+import org.apache.hadoop.net.NetworkTopology;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -59,6 +61,8 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
   public static void beforeAllTests() throws Exception {
     Configuration conf = HBaseConfiguration.create();
     conf.setFloat("hbase.master.balancer.stochastic.maxMovePercent", 0.75f);
+    conf.setClass("hbase.util.ip.to.rack.determiner", 
+        MyRackResolver.class, DNSToSwitchMapping.class);
     loadBalancer = new StochasticLoadBalancer();
     loadBalancer.setConf(conf);
   }
@@ -519,5 +523,22 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
     }
 
     return clusterState;
+  }
+
+  public static class MyRackResolver implements DNSToSwitchMapping {
+
+    public MyRackResolver(Configuration conf) {}
+
+    @Override
+    public List<String> resolve(List<String> names) {
+      List<String> racks = new ArrayList<String>(names.size());
+      for (int i = 0; i < names.size(); i++) {
+        racks.add(i, NetworkTopology.DEFAULT_RACK);
+      }
+      return racks;
+    }
+
+    @Override
+    public void reloadCachedMappings() {} 
   }
 }

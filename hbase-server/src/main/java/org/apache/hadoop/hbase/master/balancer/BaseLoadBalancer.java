@@ -101,7 +101,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
     int numMovedRegions = 0; //num moved regions from the initial configuration
     int numMovedMetaRegions = 0;       //num of moved regions that are META
-    RackManager rackManager;
+    protected RackManager rackManager;
 
 
     protected Cluster(Map<ServerName, List<HRegionInfo>> clusterState,  Map<String, Deque<RegionLoad>> loads,
@@ -116,7 +116,6 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       tables = new ArrayList<String>();
       this.rackManager = rackManager;
 
-      int numPrimaryRegions = 0; //TODO
       List<List<Integer>> serversPerHostList = new ArrayList<List<Integer>>();
       // Use servername and port as there can be dead servers in this list. We want everything with
       // a matching hostname and port to have the same index.
@@ -499,7 +498,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
   // slop for regions
   protected float slop;
   private Configuration config;
-  private RackManager rackManager;
+  protected RackManager rackManager;
   private static final Random RANDOM = new Random(System.currentTimeMillis());
   private static final Log LOG = LogFactory.getLog(BaseLoadBalancer.class);
 
@@ -513,6 +512,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     else if (slop > 1) slop = 1;
 
     this.config = conf;
+    this.rackManager = new RackManager(getConf());
   }
 
   protected void setSlop(Configuration conf) {
@@ -903,7 +903,6 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
   @Override
   public void initialize() throws HBaseIOException{
-    rackManager = new RackManager(getConf());
   }
 
   @Override
