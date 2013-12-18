@@ -558,7 +558,7 @@ public class MetaEditor {
   }
 
   private static void checkReplicaID(HRegionInfo region) throws IOException {
-    if (region.getReplicaId() != HRegionInfo.REPLICA_ID_PRIMARY) {
+    if (region != null && region.getReplicaId() != HRegionInfo.REPLICA_ID_PRIMARY) {
       throw new IOException("Unexpected deleteRegion came for a replicaId " +
           region.getReplicaId() + ". HRegionInfo " + region.getRegionNameAsString());
     }

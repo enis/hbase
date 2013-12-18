@@ -455,11 +455,15 @@ public class MetaReader {
         Pair<HRegionInfo,ServerName[]> pair = HRegionInfo.getServerNamesFromMetaRowResult(r);
         this.current = new ArrayList<Pair<HRegionInfo, ServerName>>(2);
         int replicaId = 0;
-        for (ServerName sn : pair.getSecond()) {
-          // Populate this.current so available when we call #add
-          this.current.add(
-              new Pair<HRegionInfo, ServerName>(hri.getRegionInfoForReplica(replicaId), sn));
-          replicaId++;
+        if (pair.getSecond() == null) {
+          this.current.add(new Pair<HRegionInfo, ServerName>(hri.getRegionInfoForReplica(replicaId), null));
+        } else {
+          for (ServerName sn : pair.getSecond()) {
+            // Populate this.current so available when we call #add
+            this.current.add(
+                new Pair<HRegionInfo, ServerName>(hri.getRegionInfoForReplica(replicaId), sn));
+            replicaId++;
+          }
         }
         // Else call super and add this Result to the collection.
         return super.visit(r);

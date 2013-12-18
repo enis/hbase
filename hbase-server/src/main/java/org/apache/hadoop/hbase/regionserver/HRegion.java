@@ -376,9 +376,13 @@ public class HRegion implements HeapSize { // , Writable{
       return this.flushRequested;
     }
 
-    void setReplicaStatus(boolean isPrimaryReplica) {
+    void setReadOnlyAndReplicaStatus(boolean isPrimaryReplica, boolean isTableReadOnly) {
       this.isPrimaryReplica = isPrimaryReplica;
-      setReadOnly(!isPrimaryReplica); // only primary can accept writes
+      if (!isTableReadOnly) {
+        setReadOnly(!isPrimaryReplica); // only primary can accept writes
+      } else {
+        setReadOnly(true);
+      }
     }
 
     static final long HEAP_SIZE = ClassSize.align(
@@ -629,8 +633,8 @@ public class HRegion implements HeapSize { // , Writable{
     fs.cleanupAnySplitDetritus();
     fs.cleanupMergesDir();
 
-    this.writestate.setReadOnly(this.htableDescriptor.isReadOnly());
-    this.writestate.setReplicaStatus(this.getRegionInfo().getReplicaId() == 0);
+    this.writestate.setReadOnlyAndReplicaStatus(this.getRegionInfo().getReplicaId() == 0,
+        this.htableDescriptor.isReadOnly());
     this.writestate.flushRequested = false;
     this.writestate.compacting = 0;
 
