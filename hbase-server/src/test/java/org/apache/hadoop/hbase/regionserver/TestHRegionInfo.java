@@ -120,12 +120,14 @@ public class TestHRegionInfo {
     // replicaId = 1
     name = HRegionInfo.createRegionName(tn, sk, Bytes.toBytes(id), 1, false);
     nameStr = Bytes.toString(name);
-    assertEquals(tableName + "," + startKey + "," + id + "," + Integer.toString(1), nameStr);
+    assertEquals(tableName + "," + startKey + "," + id + "," +
+      HRegionInfo.REPLICA_ID_FORMAT.format(1), nameStr);
 
     // replicaId = int max
     name = HRegionInfo.createRegionName(tn, sk, Bytes.toBytes(id), Integer.MAX_VALUE, false);
     nameStr = Bytes.toString(name);
-    assertEquals(tableName + "," + startKey + "," + id + "," + Integer.toString(Integer.MAX_VALUE), nameStr);
+    assertEquals(tableName + "," + startKey + "," + id + "," +
+      Integer.toString(Integer.MAX_VALUE), nameStr);
   }
 
   @Test

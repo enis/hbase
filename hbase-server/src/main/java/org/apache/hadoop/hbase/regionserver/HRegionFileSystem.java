@@ -99,7 +99,10 @@ public class HRegionFileSystem {
     this.conf = conf;
     this.tableDir = tableDir;
     this.regionInfo = regionInfo;
-    this.primaryRegionInfo = regionInfo.getPrimaryRegionInfo(); // refer to the primary replica on disk
+    if (regionInfo != null) {
+      // refer to the primary replica on disk
+      this.primaryRegionInfo = regionInfo.getPrimaryRegionInfo();
+    } else this.primaryRegionInfo = null;
     this.hdfsClientRetriesNumber = conf.getInt("hdfs.client.retries.number",
       DEFAULT_HDFS_CLIENT_RETRIES_NUMBER);
     this.baseSleepBeforeRetries = conf.getInt("hdfs.client.sleep.before.retries",

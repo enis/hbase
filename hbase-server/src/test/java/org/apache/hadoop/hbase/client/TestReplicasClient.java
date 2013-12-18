@@ -10,6 +10,7 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MasterNotRunningException;
+import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.NotServingRegionException;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
@@ -24,6 +25,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Tests for region replicas. Sad that we cannot isolate these without bringing up a whole
  * cluster. See {@link org.apache.hadoop.hbase.regionserver.TestRegionServerNoMaster}.
  */
+@Category(MediumTests.class)
 public class TestReplicasClient {
   private static final Log LOG = LogFactory.getLog(TestReplicasClient.class);
 

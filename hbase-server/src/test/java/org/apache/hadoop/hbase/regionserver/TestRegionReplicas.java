@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.NotServingRegionException;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.TestMetaReaderEditor;
@@ -41,6 +42,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import com.google.protobuf.ServiceException;
 
@@ -48,6 +50,7 @@ import com.google.protobuf.ServiceException;
  * Tests for region replicas. Sad that we cannot isolate these without bringing up a whole
  * cluster. See {@link TestRegionServerNoMaster}.
  */
+@Category(MediumTests.class)
 public class TestRegionReplicas {
   private static final int NB_SERVERS = 1;
   private static HTable table;
