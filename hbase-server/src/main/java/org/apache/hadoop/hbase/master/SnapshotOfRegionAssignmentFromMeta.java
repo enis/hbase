@@ -113,10 +113,12 @@ public class SnapshotOfRegionAssignmentFromMeta {
           ServerName[] servers = pair.getSecond();
 
           // Add the current assignment to the snapshot for all replicas
-          for (int i = 0; i < servers.length; i++) {
-            hri = hri.getRegionInfoForReplica(i);
-            addAssignment(hri, servers[i]);
-            addRegion(hri);
+          if (servers != null) {
+            for (int i = 0; i < servers.length; i++) {
+              hri = hri.getRegionInfoForReplica(i);
+              addAssignment(hri, servers[i]);
+              addRegion(hri);
+            }
           }
           // the code below is to handle favored nodes
           byte[] favoredNodes = result.getValue(HConstants.CATALOG_FAMILY,
