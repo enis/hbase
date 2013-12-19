@@ -119,6 +119,12 @@ public class SnapshotOfRegionAssignmentFromMeta {
               addAssignment(hri, servers[i]);
               addRegion(hri);
             }
+          } else {
+            // add a 'null' assignment. Required for map.keyset operation on the 
+            // return value from getRegionToRegionServerMap. The keyset should
+            // still contain the hri although the region is presently not assigned
+            addAssignment(hri, null);
+            addRegion(hri);
           }
           // the code below is to handle favored nodes
           byte[] favoredNodes = result.getValue(HConstants.CATALOG_FAMILY,
