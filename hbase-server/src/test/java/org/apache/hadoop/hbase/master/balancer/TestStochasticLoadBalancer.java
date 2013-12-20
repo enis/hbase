@@ -538,7 +538,6 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
       return racks;
     }
 
-    @Override
     public void reloadCachedMappings() {} 
   }
 }
