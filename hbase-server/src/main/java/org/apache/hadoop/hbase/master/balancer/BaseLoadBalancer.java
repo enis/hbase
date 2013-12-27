@@ -43,6 +43,7 @@ import org.apache.hadoop.hbase.master.AssignmentManager;
 import org.apache.hadoop.hbase.master.LoadBalancer;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.RackManager;
+import org.apache.hadoop.hbase.master.balancer.BaseLoadBalancer.Cluster.Action.Type;
 import org.apache.hadoop.hbase.util.Pair;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -83,6 +84,9 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     int[][] numRegionsPerServerPerTable; //serverIndex -> tableIndex -> # regions
     int[]   numMaxRegionsPerTable;       //tableIndex -> max number of regions in a single RS
     int[]   regionIndexToPrimaryIndex;   //regionIndex -> regionIndex of the primary
+
+    int[][] regionsPerHost;              //hostIndex -> list of regions
+    int[][] regionsByPrimaryPerHost;     //hostIndex -> sorted list of regions by primary region index
 
     Integer[] serverIndicesSortedByRegionCount;
 
@@ -151,6 +155,8 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       serverToReplicaMap = new HashMap<Integer, Set<HRegionInfo>>();
       rackToReplicaMap = new HashMap<String, Set<HRegionInfo>>();
       serverIndexToHostIndex = new int[numServers];
+      regionsPerHost = new int[numHosts][];
+      regionsByPrimaryPerHost = new int[numHosts][];
 
       int tableIndex = 0, regionIndex = 0, regionPerServerIndex = 0;
 
@@ -286,47 +292,132 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
           regionIndexToPrimaryIndex[i] = regionsToIndex.get(info.getPrimaryRegionInfo());
         }
       }
-    }
 
-    public void moveOrSwapRegion(int lServer, int rServer, int lRegion, int rRegion) {
-      //swap
-      if (rRegion >= 0 && lRegion >= 0) {
-        regionMoved(rRegion, rServer, lServer);
-        regionsPerServer[rServer] = replaceRegion(regionsPerServer[rServer], rRegion, lRegion);
-        regionMoved(lRegion, lServer, rServer);
-        regionsPerServer[lServer] = replaceRegion(regionsPerServer[lServer], lRegion, rRegion);
-        updateReplicaMap(rServer, lServer, rRegion);
-        updateReplicaMap(lServer, rServer, lRegion);
-      } else if (rRegion >= 0) { //move rRegion
-        regionMoved(rRegion, rServer, lServer);
-        regionsPerServer[rServer] = removeRegion(regionsPerServer[rServer], rRegion);
-        regionsPerServer[lServer] = addRegion(regionsPerServer[lServer], rRegion);
-        updateReplicaMap(rServer, lServer, rRegion);
-      } else if (lRegion >= 0) { //move lRegion
-        regionMoved(lRegion, lServer, rServer);
-        regionsPerServer[lServer] = removeRegion(regionsPerServer[lServer], lRegion);
-        regionsPerServer[rServer] = addRegion(regionsPerServer[rServer], lRegion);
-        updateReplicaMap(rServer, lServer, lRegion);
+
+      for (int i = 0 ; i < serversPerHost.length; i++) {
+        int numRegionsPerHost = 0;
+        for (int j = 0; j < serversPerHost[i].length; j++) {
+          numRegionsPerHost += regionsPerServer[serversPerHost[i][j]].length;
+        }
+        regionsPerHost[i] = new int[numRegionsPerHost];
+        regionsByPrimaryPerHost[i] = new int[numRegionsPerHost];
+      }
+
+      for (int i = 0 ; i < serversPerHost.length; i++) {
+        int numRegionPerHostIndex = 0;
+        for (int j = 0; j < serversPerHost[i].length; j++) {
+          for (int k = 0; k < regionsPerServer[serversPerHost[i][j]].length; k++) {
+            int region = regionsPerServer[serversPerHost[i][j]][k];
+            regionsPerHost[i][numRegionPerHostIndex] = region;
+            int primaryIndex = regionIndexToPrimaryIndex[region];
+            regionsByPrimaryPerHost[i][numRegionPerHostIndex] = primaryIndex;
+            numRegionPerHostIndex++;
+          }
+        }
+        // sort the regions by primaries.
+        Arrays.sort(regionsByPrimaryPerHost[i]);
       }
     }
 
-    // remove region from lServer and put it in rServer. Also update the racks information
+    /** An action to move or swap a region */
+    public static class Action {
+      public static enum Type {
+        MOVE_REGION,
+        SWAP_REGIONS,
+        NULL,
+      }
+
+      public Type type;
+      public Action (Type type) {this.type = type;}
+      /** Returns an Action which would undo this action */
+      public Action undoAction() { return this; }
+      @Override
+      public String toString() { return type + ":";}
+    }
+
+    public static class MoveRegionAction extends Action {
+      public int region;
+      public int fromServer;
+      public int toServer;
+
+      public MoveRegionAction(int region, int fromServer, int toServer) {
+        super(Type.MOVE_REGION);
+        this.fromServer = fromServer;
+        this.region = region;
+        this.toServer = toServer;
+      }
+      @Override
+      public Action undoAction() {
+        return new MoveRegionAction (region, toServer, fromServer);
+      }
+      @Override
+      public String toString() {
+        return type + ": " + region + ":" + fromServer + " -> " + toServer;
+      }
+    }
+
+    public static class SwapRegionsAction extends Action {
+      public int fromServer;
+      public int fromRegion;
+      public int toServer;
+      public int toRegion;
+      public SwapRegionsAction(int fromServer, int fromRegion, int toServer, int toRegion) {
+        super(Type.SWAP_REGIONS);
+        this.fromServer = fromServer;
+        this.fromRegion = fromRegion;
+        this.toServer = toServer;
+        this.toRegion = toRegion;
+      }
+      @Override
+      public Action undoAction() {
+        return new SwapRegionsAction (fromServer, toRegion, toServer, fromRegion);
+      }
+      @Override
+      public String toString() {
+        return type + ": " + fromRegion + ":" + fromServer + " <-> " + toRegion + ":" + toServer;
+      }
+    }
+
+    public static Action NullAction = new Action(Type.NULL);
+
+    public void doAction(Action action) {
+      switch (action.type) {
+      case NULL: break;
+      case MOVE_REGION:
+        MoveRegionAction mra = (MoveRegionAction) action;
+        regionsPerServer[mra.fromServer] = removeRegion(regionsPerServer[mra.fromServer], mra.region);
+        regionsPerServer[mra.toServer] = addRegion(regionsPerServer[mra.toServer], mra.region);
+        regionMoved(mra.region, mra.fromServer, mra.toServer);
+        break;
+      case SWAP_REGIONS:
+        SwapRegionsAction a = (SwapRegionsAction) action;
+        regionsPerServer[a.fromServer] = replaceRegion(regionsPerServer[a.fromServer], a.fromRegion, a.toRegion);
+        regionsPerServer[a.toServer] = replaceRegion(regionsPerServer[a.toServer], a.toRegion, a.fromRegion);
+        regionMoved(a.fromRegion, a.fromServer, a.toServer);
+        regionMoved(a.toRegion, a.toServer, a.fromServer);
+        break;
+      default:
+        throw new RuntimeException("Uknown action:" + action.type);
+      }
+    }
+
+    // remove region from olServer and put it in newServer. Also update the racks information
     @VisibleForTesting
-    void updateReplicaMap(int lServer, int rServer, int region) {
-      Set<HRegionInfo> regionSet = serverToReplicaMap.get(lServer);
+    void updateReplicaMap(int region, int olServer, int newServer) {
+      Set<HRegionInfo> regionSet = serverToReplicaMap.get(olServer);
       if (regionSet != null) {
         regionSet.remove(regions[region]);
       }
-      regionSet = serverToReplicaMap.get(rServer);
+      regionSet = serverToReplicaMap.get(newServer);
       if (regionSet == null) {
         regionSet = new HashSet<HRegionInfo>();
-        serverToReplicaMap.put(rServer, regionSet);
+        serverToReplicaMap.put(newServer, regionSet);
       }
       regionSet.add(regions[region]);
       // update the racks info
       if (rackManager != null) {
-        String srcRack = rackManager.getRack(servers[lServer]);
-        String destRack = rackManager.getRack(servers[rServer]);
+        String srcRack = rackManager.getRack(servers[olServer]);
+        String destRack = rackManager.getRack(servers[newServer]);
         regionSet = rackToReplicaMap.get(srcRack);
         if (regionSet != null) {
           regionSet.remove(regions[region]);
@@ -368,28 +459,27 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       return false;
     }
 
-    /** Region moved out of the server */
-    void regionMoved(int regionIndex, int oldServerIndex, int newServerIndex) {
-      regionIndexToServerIndex[regionIndex] = newServerIndex;
-      if (initialRegionIndexToServerIndex[regionIndex] == newServerIndex) {
+    void regionMoved(int region, int oldServer, int newServer) {
+      regionIndexToServerIndex[region] = newServer;
+      if (initialRegionIndexToServerIndex[region] == newServer) {
         numMovedRegions--; //region moved back to original location
-        if (regions[regionIndex].isMetaRegion()) {
+        if (regions[region].isMetaRegion()) {
           numMovedMetaRegions--;
         }
-      } else if (initialRegionIndexToServerIndex[regionIndex] == oldServerIndex) {
+      } else if (initialRegionIndexToServerIndex[region] == oldServer) {
         numMovedRegions++; //region moved from original location
-        if (regions[regionIndex].isMetaRegion()) {
+        if (regions[region].isMetaRegion()) {
           numMovedMetaRegions++;
         }
       }
-      int tableIndex = regionIndexToTableIndex[regionIndex];
-      numRegionsPerServerPerTable[oldServerIndex][tableIndex]--;
-      numRegionsPerServerPerTable[newServerIndex][tableIndex]++;
+      int tableIndex = regionIndexToTableIndex[region];
+      numRegionsPerServerPerTable[oldServer][tableIndex]--;
+      numRegionsPerServerPerTable[newServer][tableIndex]++;
 
       //check whether this caused maxRegionsPerTable in the new Server to be updated
-      if (numRegionsPerServerPerTable[newServerIndex][tableIndex] > numMaxRegionsPerTable[tableIndex]) {
-        numRegionsPerServerPerTable[newServerIndex][tableIndex] = numMaxRegionsPerTable[tableIndex];
-      } else if ((numRegionsPerServerPerTable[oldServerIndex][tableIndex] + 1)
+      if (numRegionsPerServerPerTable[newServer][tableIndex] > numMaxRegionsPerTable[tableIndex]) {
+        numRegionsPerServerPerTable[newServer][tableIndex] = numMaxRegionsPerTable[tableIndex];
+      } else if ((numRegionsPerServerPerTable[oldServer][tableIndex] + 1)
           == numMaxRegionsPerTable[tableIndex]) {
         //recompute maxRegionsPerTable since the previous value was coming from the old server
         for (int serverIndex = 0 ; serverIndex < numRegionsPerServerPerTable.length; serverIndex++) {
@@ -399,20 +489,20 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         }
       }
 
-      // check for replicas
-      int oldHostIndex = serverIndexToHostIndex[oldServerIndex];
-      int newHostIndex = serverIndexToHostIndex[newServerIndex];
-      if (oldHostIndex != newHostIndex) {
-        int[][] serversPerRegionReplica;
+      // update for hosts
+      int oldHost = serverIndexToHostIndex[oldServer];
+      int newHost = serverIndexToHostIndex[newServer];
 
-        // regions[regionIndex];
-        // check whether there is a replica of the same region in the same host
-        for (int serverIndex : serversPerHost[oldHostIndex]) {
-          for (int r : regionsPerServer[serverIndex]) {
-
-          }
-        }
+      if (newHost != oldHost) {
+        regionsPerHost[oldHost] = removeRegion(regionsPerHost[oldHost], region);
+        regionsPerHost[newHost] = addRegion(regionsPerHost[newHost], region);
+        int primary = regionIndexToPrimaryIndex[region];
+        regionsByPrimaryPerHost[oldHost] = removeRegion(
+          regionsByPrimaryPerHost[oldHost], primary); // will still be sorted
+        regionsByPrimaryPerHost[newHost] = addRegionSorted(regionsByPrimaryPerHost[newHost], primary);
       }
+
+      updateReplicaMap(region, oldServer, newServer);
     }
 
     int[] removeRegion(int[] regions, int regionIndex) {
@@ -433,6 +523,24 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       int[] newRegions = new int[regions.length + 1];
       System.arraycopy(regions, 0, newRegions, 0, regions.length);
       newRegions[newRegions.length - 1] = regionIndex;
+      return newRegions;
+    }
+
+    int[] addRegionSorted(int[] regions, int regionIndex) {
+      int[] newRegions = new int[regions.length + 1];
+      int i = 0;
+      for (i = 0; i < regions.length; i++) {
+        if (regions[i] > regionIndex) {
+          newRegions[i] = regionIndex;
+          break;
+        }
+        newRegions[i] = regions[i];
+      }
+      if (i == regions.length) {
+        newRegions[i] = regionIndex;
+      } else {
+        System.arraycopy(regions, i, newRegions, i+1, regions.length - i);
+      }
       return newRegions;
     }
 
