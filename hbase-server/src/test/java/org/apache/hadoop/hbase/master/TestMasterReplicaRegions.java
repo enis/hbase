@@ -167,12 +167,18 @@ public class TestMasterReplicaRegions {
       ct = new CatalogTracker(TEST_UTIL.getConfiguration());
       validateSingleRegionServerAssignment(ct, numRegions, numReplica);
 
-      // just do a quick check on disable/enable
+      //check on alter table
       admin.disableTable(table);
       assert(admin.isTableDisabled(table));
+      //increase the replica
+      desc.setRegionReplication(numReplica + 1);
+      admin.modifyTable(table, desc);
       admin.enableTable(table);
       assert(admin.isTableEnabled(table));
-      validateSingleRegionServerAssignment(ct, numRegions, numReplica);
+      List<HRegionInfo> regions = TEST_UTIL.getMiniHBaseCluster().getMaster()
+          .getAssignmentManager().getRegionStates().getRegionsOfTable(table);
+      assert(regions.size() == numRegions * (numReplica + 1));
+      validateSingleRegionServerAssignment(ct, numRegions, (numReplica + 1));
     } finally {
       admin.disableTable(table);
     }

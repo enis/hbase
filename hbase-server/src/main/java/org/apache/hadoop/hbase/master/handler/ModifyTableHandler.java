@@ -19,6 +19,8 @@
 package org.apache.hadoop.hbase.master.handler;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -30,6 +32,7 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.executor.EventType;
+import org.apache.hadoop.hbase.master.AssignmentManager;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.MasterCoprocessorHost;
 import org.apache.hadoop.hbase.master.MasterFileSystem;
@@ -41,6 +44,7 @@ public class ModifyTableHandler extends TableEventHandler {
   private static final Log LOG = LogFactory.getLog(ModifyTableHandler.class);
 
   private final HTableDescriptor htd;
+  private final AssignmentManager assignmentManager;
 
   public ModifyTableHandler(final TableName tableName,
       final HTableDescriptor htd, final Server server,
@@ -48,6 +52,7 @@ public class ModifyTableHandler extends TableEventHandler {
     super(EventType.C_M_MODIFY_TABLE, tableName, server, masterServices);
     // This is the new schema we are going to write out as this modification.
     this.htd = htd;
+    this.assignmentManager = masterServices.getAssignmentManager();
   }
 
   @Override
@@ -68,8 +73,36 @@ public class ModifyTableHandler extends TableEventHandler {
     HTableDescriptor oldHtd = getTableDescriptor();
     this.masterServices.getTableDescriptors().add(this.htd);
     deleteFamilyFromFS(hris, oldHtd.getFamiliesKeys());
+    // adjust replica count of the regions if needed
+    adjustRegionReplication(this.htd.getRegionReplication(), oldHtd.getRegionReplication(), hris);
     if (cpHost != null) {
       cpHost.postModifyTableHandler(this.tableName, this.htd);
+    }
+  }
+
+  private void adjustRegionReplication(int newReplicaCount, int oldReplicaCount,
+      List<HRegionInfo> hris) throws IOException {
+    if (!this.masterServices.getAssignmentManager().getZKTable().isEnabledTable(tableName)) return;
+    if (newReplicaCount == oldReplicaCount) return;
+    List<HRegionInfo> newHRIs = new ArrayList<HRegionInfo>();
+    if (newReplicaCount > oldReplicaCount) {
+      for (HRegionInfo hri : hris) {
+        // create some HRIs
+        for (int i = oldReplicaCount; i < newReplicaCount; i++) {
+          HRegionInfo e = hri.getRegionInfoForReplica(i);
+          newHRIs.add(e);
+        }
+      }
+      try {
+        assignmentManager.assign(newHRIs);
+      } catch (InterruptedException e) {
+        LOG.error("Caught " + e + " during round-robin assignment");
+        InterruptedIOException ie = new InterruptedIOException(e.getMessage());
+        ie.initCause(e);
+        throw ie;
+      }
+    } else { // newReplicaCount < oldReplicaCount
+      // TODO close some replicas
     }
   }
 

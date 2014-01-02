@@ -47,6 +47,7 @@ import org.apache.hadoop.hbase.Chore;
 import org.apache.hadoop.hbase.HBaseIOException;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.NotServingRegionException;
 import org.apache.hadoop.hbase.RegionTransition;
 import org.apache.hadoop.hbase.Server;
@@ -2561,19 +2562,51 @@ public class AssignmentManager extends ZooKeeperListener {
     boolean retainAssignment = server.getConfiguration().
       getBoolean("hbase.master.startup.retainassign", true);
 
+    Set<HRegionInfo> regionsFromMetaScan = allRegions.keySet();
     if (retainAssignment) {
       assign(allRegions);
     } else {
-      List<HRegionInfo> regions = new ArrayList<HRegionInfo>(allRegions.keySet());
+      List<HRegionInfo> regions = new ArrayList<HRegionInfo>(regionsFromMetaScan);
       assign(regions);
     }
 
-    for (HRegionInfo hri : allRegions.keySet()) {
+    for (HRegionInfo hri : regionsFromMetaScan) {
       TableName tableName = hri.getTable();
       if (!zkTable.isEnabledTable(tableName)) {
         setEnabledTable(tableName);
       }
     }
+    // assign all the replicas that were not recorded in the meta
+    assign(replicaRegionsNotRecordedInMeta(regionsFromMetaScan, (MasterServices)server));
+  }
+
+  /**
+   * Get a list of replica regions that are:
+   * not recorded in meta yet. In the meta, we will
+   * record all the primary regions for sure. We might not have recorded the locations
+   * for the replicas since the replicas may not have been online yet, master restarted
+   * in the middle of assigning, etc. TODO: this method needs better placement
+   * @param regionsRecordedInMeta the list of regions we know are recorded in meta
+   * either as a primary, or, as the location of a non-primary replica
+   * @return list of replica regions (non-primary)
+   * @throws IOException
+   */
+  public static List<HRegionInfo> replicaRegionsNotRecordedInMeta(
+      Set<HRegionInfo> regionsRecordedInMeta, MasterServices master)throws IOException {
+    List<HRegionInfo> regionsNotRecordedInMeta = new ArrayList<HRegionInfo>();
+    for (HRegionInfo hri : regionsRecordedInMeta) {
+      TableName table = hri.getTable();
+      HTableDescriptor htd = master.getTableDescriptors().get(table);
+      // look at the HTD for the replica count. That's the source of truth
+      int desiredRegionReplication = htd.getRegionReplication();
+      // start from replicaID = 1.
+      for (int i = 1; i < desiredRegionReplication; i++) {
+        HRegionInfo replica = hri.getRegionInfoForReplica(i);
+        if (regionsRecordedInMeta.contains(replica)) continue;
+        regionsNotRecordedInMeta.add(replica);
+      }
+    }
+    return regionsNotRecordedInMeta;
   }
 
   /**

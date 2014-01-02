@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.master.handler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -40,6 +41,7 @@ import org.apache.hadoop.hbase.master.AssignmentManager;
 import org.apache.hadoop.hbase.master.BulkAssigner;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.MasterCoprocessorHost;
+import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.master.RegionStates;
 import org.apache.hadoop.hbase.master.ServerManager;
@@ -61,6 +63,7 @@ public class EnableTableHandler extends EventHandler {
   private final CatalogTracker catalogTracker;
   private boolean retainAssignment = false;
   private TableLock tableLock;
+  private MasterServices services;
 
   public EnableTableHandler(Server server, TableName tableName,
       CatalogTracker catalogTracker, AssignmentManager assignmentManager,
@@ -71,6 +74,14 @@ public class EnableTableHandler extends EventHandler {
     this.assignmentManager = assignmentManager;
     this.tableLockManager = tableLockManager;
     this.retainAssignment = skipTableStateCheck;
+  }
+
+  public EnableTableHandler(MasterServices services, TableName tableName,
+      CatalogTracker catalogTracker, AssignmentManager assignmentManager,
+      TableLockManager tableLockManager, boolean skipTableStateCheck) {
+    this((Server)services, tableName, catalogTracker, assignmentManager, tableLockManager,
+        skipTableStateCheck);
+    this.services = services;
   }
 
   public EnableTableHandler prepare()
@@ -179,6 +190,11 @@ public class EnableTableHandler extends EventHandler {
         .getTableRegionsAndLocations(this.catalogTracker, tableName, true);
     int countOfRegionsInTable = tableRegionsAndLocations.size();
     List<HRegionInfo> regions = regionsToAssignWithServerName(tableRegionsAndLocations);
+    if (services != null) {
+      // need to either reduce the replication or increase (TODO: handle the decrease)
+      regions.addAll(AssignmentManager.replicaRegionsNotRecordedInMeta(
+          new HashSet<HRegionInfo>(regions), services));
+    }
     int regionsCount = regions.size();
     if (regionsCount == 0) {
       done = true;
