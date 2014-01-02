@@ -56,12 +56,13 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
   public static final String REGION_KEY = "testRegion";
   private static StochasticLoadBalancer loadBalancer;
   private static final Log LOG = LogFactory.getLog(TestStochasticLoadBalancer.class);
+  private static Configuration conf;
 
   @BeforeClass
   public static void beforeAllTests() throws Exception {
-    Configuration conf = HBaseConfiguration.create();
+    conf = HBaseConfiguration.create();
     conf.setFloat("hbase.master.balancer.stochastic.maxMovePercent", 0.75f);
-    conf.setClass("hbase.util.ip.to.rack.determiner", 
+    conf.setClass("hbase.util.ip.to.rack.determiner",
         MyRackResolver.class, DNSToSwitchMapping.class);
     loadBalancer = new StochasticLoadBalancer();
     loadBalancer.setConf(conf);
@@ -307,6 +308,7 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
     BaseLoadBalancer.Cluster cluster;
 
     cluster = new BaseLoadBalancer.Cluster(clusterState, null, null, null);
+    costFunction.init(cluster);
     double costWithoutReplicas = costFunction.cost(cluster);
     assertEquals(0, costWithoutReplicas, 0);
 
@@ -315,6 +317,7 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
     clusterState.lastEntry().getValue().add(replica1);
 
     cluster = new BaseLoadBalancer.Cluster(clusterState, null, null, null);
+    costFunction.init(cluster);
     double costWith1ReplicaDifferentServer = costFunction.cost(cluster);
 
     assertEquals(0, costWith1ReplicaDifferentServer, 0);
@@ -324,6 +327,7 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
     clusterState.lastEntry().getValue().add(replica2);
 
     cluster = new BaseLoadBalancer.Cluster(clusterState, null, null, null);
+    costFunction.init(cluster);
     double costWith1ReplicaSameServer = costFunction.cost(cluster);
 
     assertTrue(costWith1ReplicaDifferentServer < costWith1ReplicaSameServer);
@@ -345,6 +349,7 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
     it.next().getValue().add(replica3); //2nd server
 
     cluster = new BaseLoadBalancer.Cluster(clusterState, null, null, null);
+    costFunction.init(cluster);
     double costWith3ReplicasSameServer = costFunction.cost(cluster);
 
     clusterState = mockClusterServers(servers);
@@ -357,6 +362,7 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
     clusterState.lastEntry().getValue().add(replica3);
 
     cluster = new BaseLoadBalancer.Cluster(clusterState, null, null, null);
+    costFunction.init(cluster);
     double costWith2ReplicasOnTwoServers = costFunction.cost(cluster);
 
     assertTrue(costWith2ReplicasOnTwoServers < costWith3ReplicasSameServer);
@@ -449,6 +455,19 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
     testWithCluster(numNodes, numRegions, numRegionsPerServer, replication, numTables, true);
   }
 
+  // TODO
+//  @Test (timeout = 60000)
+//  public void testRegionReplicasOnMidCluster() {
+//    conf.setLong("hbase.master.balancer.stochastic.maxSteps", 10000000L);
+//    loadBalancer.setConf(conf);
+//    int numNodes = 200;
+//    int numRegions = 40 * 200;
+//    int replication = 3; // 3 replicas per region
+//    int numRegionsPerServer = 30; //all regions are mostly balanced
+//    int numTables = 10;
+//    testWithCluster(numNodes, numRegions, numRegionsPerServer, replication, numTables, true);
+//  }
+
 // TODO
 //  @Test (timeout = 60000)
 //  public void testRegionReplicasOnSmallClusterHighReplication() {
@@ -460,9 +479,9 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
 //    testWithCluster(numNodes, numRegions, numRegionsPerServer, replication, numTables, true);
 //  }
 
-  //test with hosts
+  //TODO: test with hosts
 
-  //test with replication  > numServers
+  //TODO: test with replication  > numServers
 
   protected void testWithCluster(int numNodes,
                                  int numRegions,
@@ -538,7 +557,6 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
       return racks;
     }
 
-    @Override
-    public void reloadCachedMappings() {} 
+    public void reloadCachedMappings() {}
   }
 }
