@@ -3158,4 +3158,34 @@ MasterServices, Server {
     return ready;
   }
 
+  /**
+   * Get a list of replica regions that are:
+   * not recorded in meta yet. In the meta, we will
+   * record all the primary regions for sure. We might not have recorded the locations
+   * for the replicas since the replicas may not have been online yet, master restarted
+   * in the middle of assigning, ZK erased, etc.
+   * @param regionsRecordedInMeta the list of regions we know are recorded in meta
+   * either as a primary, or, as the location of a non-primary replica
+   * @param master
+   * @return list of replica regions (non-primary)
+   * @throws IOException
+   */
+  public static List<HRegionInfo> replicaRegionsNotRecordedInMeta(
+      Set<HRegionInfo> regionsRecordedInMeta, MasterServices master)throws IOException {
+    List<HRegionInfo> regionsNotRecordedInMeta = new ArrayList<HRegionInfo>();
+    for (HRegionInfo hri : regionsRecordedInMeta) {
+      TableName table = hri.getTable();
+      HTableDescriptor htd = master.getTableDescriptors().get(table);
+      // look at the HTD for the replica count. That's the source of truth
+      int desiredRegionReplication = htd.getRegionReplication();
+      // start from replicaID = 1 since the meta must have recorded the primary
+      // (e.g. at the time of createTable)
+      for (int i = 1; i < desiredRegionReplication; i++) {
+        HRegionInfo replica = hri.getRegionInfoForReplica(i);
+        if (regionsRecordedInMeta.contains(replica)) continue;
+        regionsNotRecordedInMeta.add(replica);
+      }
+    }
+    return regionsNotRecordedInMeta;
+  }
 }

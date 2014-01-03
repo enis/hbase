@@ -105,6 +105,7 @@ public class ModifyTableHandler extends TableEventHandler {
       }
       metaTable.delete(deleteReplicaLocations);
     }
+    metaTable.close();
   }
 
   /**

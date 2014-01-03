@@ -241,14 +241,15 @@ public class TestMasterReplicaRegions {
       admin.disableTable(table);
       // now delete one replica info from all the rows
       // this is to make the meta appear to be only partially updated
+      HTable metaTable = new HTable(TableName.META_TABLE_NAME, ct.getConnection());
       for (byte[] row : tableRows) {
         Delete deleteOneReplicaLocation = new Delete(row);
         deleteOneReplicaLocation.deleteColumns(HConstants.CATALOG_FAMILY, MetaReader.getServerColumn(1));
         deleteOneReplicaLocation.deleteColumns(HConstants.CATALOG_FAMILY, MetaReader.getSeqNumColumn(1));
         deleteOneReplicaLocation.deleteColumns(HConstants.CATALOG_FAMILY, MetaReader.getStartCodeColumn(1));
-        HTable metaTable = new HTable(TableName.META_TABLE_NAME, ct.getConnection());
         metaTable.delete(deleteOneReplicaLocation);
       }
+      metaTable.close();
       // even if the meta table is partly updated, when we re-enable the table, we should
       // get back the desired number of replicas for the regions
       admin.enableTable(table);
