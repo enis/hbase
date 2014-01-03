@@ -93,13 +93,13 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 @InterfaceAudience.Private
 public class StochasticLoadBalancer extends BaseLoadBalancer {
 
-  private static final String STEPS_PER_REGION_KEY =
+  protected static final String STEPS_PER_REGION_KEY =
       "hbase.master.balancer.stochastic.stepsPerRegion";
-  private static final String MAX_STEPS_KEY =
+  protected static final String MAX_STEPS_KEY =
       "hbase.master.balancer.stochastic.maxSteps";
-  private static final String MAX_RUNNING_TIME_KEY =
+  protected static final String MAX_RUNNING_TIME_KEY =
       "hbase.master.balancer.stochastic.maxRunningTime";
-  private static final String KEEP_REGION_LOADS =
+  protected static final String KEEP_REGION_LOADS =
       "hbase.master.balancer.stochastic.numRegionLoadsToRemember";
 
   private static final Random RANDOM = new Random(System.currentTimeMillis());
@@ -234,6 +234,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       updateCostsWithAction(cluster, action);
 
       newCost = computeCost(cluster, currentCost);
+
       // Should this be kept?
       if (newCost < currentCost) {
         currentCost = newCost;
@@ -620,6 +621,8 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       }
 
       // randomly select one primaryIndex out of all region replicas in the same host
+      currentPrimary = -1;
+      currentPrimaryIndex = -1;
       int primaryIndex = -1;
       if (numRegionsWithReplica > 0) {
         int randomIndex = RANDOM.nextInt(numRegionsWithReplica);
@@ -630,7 +633,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
             int numReplicas = j - currentPrimaryIndex;
             if (numReplicas > 1) {
               if (index++ == randomIndex) {
-                primaryIndex = primary;
+                primaryIndex = currentPrimary;
                 break;
               }
             }
@@ -643,7 +646,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
       if (primaryIndex == -1) {
         // default to randompicker
-        randomGenerator.generate(cluster);
+        return randomGenerator.generate(cluster);
       }
 
       int regionIndex = -1;
@@ -667,7 +670,9 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       int toServerIndex = cluster.serversPerHost[toHostIndex]
           [RANDOM.nextInt(cluster.serversPerHost[toHostIndex].length)];
 
-      return getAction (serverIndex, regionIndex, toServerIndex, -1);
+      int toRegionIndex = pickRandomRegion(cluster, toServerIndex, 0.9f);
+
+      return getAction (serverIndex, regionIndex, toServerIndex, toRegionIndex);
     }
   }
 
@@ -1107,16 +1112,16 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
    * replica open.
    */
   public static class RegionReplicaHostCostFunction extends CostFunction {
-    private static final String REGION_REPLICA_HOST_KEY =
-        "hbase.master.balancer.stochastic.regionReplicaHostKey";
-    private static final float DEFAULT_REGION_REPLICA_HOST_KEY = 1000000;
+    private static final String REGION_REPLICA_HOST_COST_KEY =
+        "hbase.master.balancer.stochastic.regionReplicaHostCostKey";
+    private static final float DEFAULT_REGION_REPLICA_HOST_COST_KEY = 100000000;
 
     long maxCost = 0;
     long[] costsPerHost;
 
     public RegionReplicaHostCostFunction(Configuration conf) {
       super(conf);
-      this.setMultiplier(conf.getFloat(REGION_REPLICA_HOST_KEY, DEFAULT_REGION_REPLICA_HOST_KEY));
+      this.setMultiplier(conf.getFloat(REGION_REPLICA_HOST_COST_KEY, DEFAULT_REGION_REPLICA_HOST_COST_KEY));
     }
 
     @Override

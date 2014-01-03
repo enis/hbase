@@ -244,7 +244,7 @@ public class BalancerTestBase {
       ServerName sn = this.serverQueue.poll();
       return new ServerAndLoad(sn, numRegionsPerServer);
     }
-    String host = "srv" + rand.nextInt(100000);
+    String host = "srv" + rand.nextInt(Integer.MAX_VALUE);
     int port = rand.nextInt(60000);
     long startCode = rand.nextLong();
     ServerName sn = new ServerName(host, port, startCode);
