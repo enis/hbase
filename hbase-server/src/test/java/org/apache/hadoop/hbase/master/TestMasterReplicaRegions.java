@@ -21,6 +21,8 @@ package org.apache.hadoop.hbase.master;
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +41,6 @@ import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.CatalogTracker;
-import org.apache.hadoop.hbase.catalog.MetaEditor;
 import org.apache.hadoop.hbase.catalog.MetaReader;
 import org.apache.hadoop.hbase.catalog.MetaReader.Visitor;
 import org.apache.hadoop.hbase.client.Delete;
@@ -186,6 +187,32 @@ public class TestMasterReplicaRegions {
       List<HRegionInfo> regions = TEST_UTIL.getMiniHBaseCluster().getMaster()
           .getAssignmentManager().getRegionStates().getRegionsOfTable(table);
       assert(regions.size() == numRegions * (numReplica + 1));
+
+      //decrease the replica(earlier, table was modified to have a replica count of numReplica + 1)
+      admin.disableTable(table);
+      desc.setRegionReplication(numReplica);
+      admin.modifyTable(table, desc);
+      admin.enableTable(table);
+      assert(admin.isTableEnabled(table));
+      regions = TEST_UTIL.getMiniHBaseCluster().getMaster()
+          .getAssignmentManager().getRegionStates().getRegionsOfTable(table);
+      assert(regions.size() == numRegions * numReplica);
+      //also make sure the meta table has the replica locations removed
+      hris = MetaReader.getTableRegions(ct, table);
+      assert(hris.size() == numRegions * numReplica);
+      //just check that the number of primary regions in the meta table are the same
+      //as the number of regions the table was created with, and the count of the
+      //replicas is numReplica for each region
+      Map<HRegionInfo, Integer> primaryRegions = new HashMap<HRegionInfo, Integer>();
+      for (HRegionInfo hri : hris) {
+        Integer i;
+        HRegionInfo regionReplica0 = hri.getRegionInfoForReplica(0);
+        primaryRegions.put(regionReplica0, 
+            (i = primaryRegions.get(regionReplica0)) == null ? 1 : i + 1);
+      }
+      assert(primaryRegions.size() == numRegions);
+      Collection<Integer> counts = new HashSet<Integer>(primaryRegions.values());
+      assert(counts.size() == 1 && counts.contains(new Integer(numReplica)));
     } finally {
       admin.disableTable(table);
       admin.deleteTable(table);
@@ -206,22 +233,15 @@ public class TestMasterReplicaRegions {
       admin.createTable(desc, Bytes.toBytes("A"), Bytes.toBytes("Z"), numRegions);
       TEST_UTIL.waitTableEnabled(table.getName());
       CatalogTracker ct = new CatalogTracker(TEST_UTIL.getConfiguration());
-      final byte[][] someTableRow = new byte[numRegions][];
-      final AtomicInteger i = new AtomicInteger(0);
-      Visitor visitor = new Visitor() {
-        @Override
-        public boolean visit(Result r) throws IOException {
-          if (HRegionInfo.getHRegionInfo(r).getTable().equals(table)) {
-            someTableRow[i.getAndAdd(1)] = r.getRow();  
-          }
-          return true;
-        }
-      };
+      Set<byte[]> tableRows = new HashSet<byte[]>();
+      List<HRegionInfo> hris = MetaReader.getTableRegions(ct, table);
+      for (HRegionInfo hri : hris) {
+        tableRows.add(hri.getRegionName());
+      }
       admin.disableTable(table);
-      MetaReader.fullScan(ct, visitor);
       // now delete one replica info from all the rows
       // this is to make the meta appear to be only partially updated
-      for (byte[] row : someTableRow) {
+      for (byte[] row : tableRows) {
         Delete deleteOneReplicaLocation = new Delete(row);
         deleteOneReplicaLocation.deleteColumns(HConstants.CATALOG_FAMILY, MetaReader.getServerColumn(1));
         deleteOneReplicaLocation.deleteColumns(HConstants.CATALOG_FAMILY, MetaReader.getSeqNumColumn(1));

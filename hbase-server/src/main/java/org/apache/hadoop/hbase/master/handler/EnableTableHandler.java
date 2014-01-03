@@ -191,7 +191,7 @@ public class EnableTableHandler extends EventHandler {
     int countOfRegionsInTable = tableRegionsAndLocations.size();
     List<HRegionInfo> regions = regionsToAssignWithServerName(tableRegionsAndLocations);
     if (services != null) {
-      // need to either reduce the replication or increase (TODO: handle the decrease)
+      // need to potentially create some regions for the replicas
       regions.addAll(AssignmentManager.replicaRegionsNotRecordedInMeta(
           new HashSet<HRegionInfo>(regions), services));
     }
