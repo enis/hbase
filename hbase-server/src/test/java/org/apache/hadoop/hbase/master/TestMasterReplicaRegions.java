@@ -32,15 +32,19 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.CatalogTracker;
+import org.apache.hadoop.hbase.catalog.MetaEditor;
 import org.apache.hadoop.hbase.catalog.MetaReader;
 import org.apache.hadoop.hbase.catalog.MetaReader.Visitor;
+import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -89,6 +93,7 @@ public class TestMasterReplicaRegions {
       assert(hris.size() == numRegions * numReplica);
     } finally {
       admin.disableTable(table);
+      admin.deleteTable(table);
     }
   }
 
@@ -166,6 +171,9 @@ public class TestMasterReplicaRegions {
       TEST_UTIL.waitTableEnabled(table.getName());
       ct = new CatalogTracker(TEST_UTIL.getConfiguration());
       validateSingleRegionServerAssignment(ct, numRegions, numReplica);
+      for (int i = 1; i < numSlaves; i++) { //restore the cluster
+        TEST_UTIL.getMiniHBaseCluster().startRegionServer();
+      }
 
       //check on alter table
       admin.disableTable(table);
@@ -178,9 +186,59 @@ public class TestMasterReplicaRegions {
       List<HRegionInfo> regions = TEST_UTIL.getMiniHBaseCluster().getMaster()
           .getAssignmentManager().getRegionStates().getRegionsOfTable(table);
       assert(regions.size() == numRegions * (numReplica + 1));
-      validateSingleRegionServerAssignment(ct, numRegions, (numReplica + 1));
     } finally {
       admin.disableTable(table);
+      admin.deleteTable(table);
+    }
+  }
+
+  @Test
+  public void testIncompleteMetaTableReplicaInformation() throws Exception {
+    final TableName table = TableName.valueOf("fooTableTest1");
+    final int numRegions = 3;
+    final int numReplica = 2;
+    try {
+      // Create a table and let the meta table be updated with the location of the
+      // region locations.
+      HTableDescriptor desc = new HTableDescriptor(table);
+      desc.setRegionReplication(numReplica);
+      desc.addFamily(new HColumnDescriptor("family"));
+      admin.createTable(desc, Bytes.toBytes("A"), Bytes.toBytes("Z"), numRegions);
+      TEST_UTIL.waitTableEnabled(table.getName());
+      CatalogTracker ct = new CatalogTracker(TEST_UTIL.getConfiguration());
+      final byte[][] someTableRow = new byte[numRegions][];
+      final AtomicInteger i = new AtomicInteger(0);
+      Visitor visitor = new Visitor() {
+        @Override
+        public boolean visit(Result r) throws IOException {
+          if (HRegionInfo.getHRegionInfo(r).getTable().equals(table)) {
+            someTableRow[i.getAndAdd(1)] = r.getRow();  
+          }
+          return true;
+        }
+      };
+      admin.disableTable(table);
+      MetaReader.fullScan(ct, visitor);
+      // now delete one replica info from all the rows
+      // this is to make the meta appear to be only partially updated
+      for (byte[] row : someTableRow) {
+        Delete deleteOneReplicaLocation = new Delete(row);
+        deleteOneReplicaLocation.deleteColumns(HConstants.CATALOG_FAMILY, MetaReader.getServerColumn(1));
+        deleteOneReplicaLocation.deleteColumns(HConstants.CATALOG_FAMILY, MetaReader.getSeqNumColumn(1));
+        deleteOneReplicaLocation.deleteColumns(HConstants.CATALOG_FAMILY, MetaReader.getStartCodeColumn(1));
+        HTable metaTable = new HTable(TableName.META_TABLE_NAME, ct.getConnection());
+        metaTable.delete(deleteOneReplicaLocation);
+      }
+      // even if the meta table is partly updated, when we re-enable the table, we should
+      // get back the desired number of replicas for the regions
+      admin.enableTable(table);
+      assert(admin.isTableEnabled(table));
+      List<HRegionInfo> regions = TEST_UTIL.getMiniHBaseCluster().getMaster()
+          .getAssignmentManager().getRegionStates().getRegionsOfTable(table);
+      assert(regions.size() == numRegions * numReplica);
+    } finally {
+      admin.disableTable(table);
+      admin.deleteTable(table);
     }
   }
 
