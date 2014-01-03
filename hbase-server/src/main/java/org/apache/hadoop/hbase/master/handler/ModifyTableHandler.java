@@ -19,8 +19,6 @@
 package org.apache.hadoop.hbase.master.handler;
 
 import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -49,7 +47,6 @@ public class ModifyTableHandler extends TableEventHandler {
   private static final Log LOG = LogFactory.getLog(ModifyTableHandler.class);
 
   private final HTableDescriptor htd;
-  private final AssignmentManager assignmentManager;
 
   public ModifyTableHandler(final TableName tableName,
       final HTableDescriptor htd, final Server server,
@@ -57,7 +54,6 @@ public class ModifyTableHandler extends TableEventHandler {
     super(EventType.C_M_MODIFY_TABLE, tableName, server, masterServices);
     // This is the new schema we are going to write out as this modification.
     this.htd = htd;
-    this.assignmentManager = masterServices.getAssignmentManager();
   }
 
   @Override
