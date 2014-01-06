@@ -300,7 +300,7 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     assertTrue(!cluster.wouldLowerAvailability(2, 0));
 
     // now move region1 from servers[0] to servers[2]
-    cluster.updateReplicaMap(0, 2, 0);
+    cluster.updateReplicaMap(0, 0, 2);
     // now repeat check whether moving region1 from servers[1] to servers[2]
     // would lower availability
     assertTrue(cluster.wouldLowerAvailability(2, 0));
@@ -319,7 +319,7 @@ public class TestBaseLoadBalancer extends BalancerTestBase {
     // lower the availability
     assertTrue(!cluster.wouldLowerAvailability(0, 3));
     // now move region2 from servers[6],rack2 to servers[0],rack1
-    cluster.updateReplicaMap(2, 0, 2);
+    cluster.updateReplicaMap(2, 2, 0);
     // now repeat check if replica_of_region2 from servers[12],rack3 to servers[0],rack1 would
     // lower the availability
     assertTrue(cluster.wouldLowerAvailability(0, 3));
