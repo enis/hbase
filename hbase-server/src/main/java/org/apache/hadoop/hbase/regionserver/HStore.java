@@ -511,8 +511,11 @@ public class HStore implements Store {
       toBeRemovedStoreFiles.add(currentFilesSet.get(sfi));
     }
 
+    // try to open the files
+    List<StoreFile> openedFiles = openStoreFiles(toBeAddedFiles);
+
     // propogate the file changes to the underlying store file manager
-    replaceStoreFiles(toBeRemovedStoreFiles, openStoreFiles(toBeAddedFiles));
+    replaceStoreFiles(toBeRemovedStoreFiles, openedFiles); //won't throw an exception
 
     // notify scanners, close file readers, and recompute store size
     completeCompaction(toBeRemovedStoreFiles, false);
@@ -1096,7 +1099,7 @@ public class HStore implements Store {
 
   @VisibleForTesting
   void replaceStoreFiles(final Collection<StoreFile> compactedFiles,
-      final Collection<StoreFile> result) throws IOException {
+      final Collection<StoreFile> result) {
     this.lock.writeLock().lock();
     try {
       this.storeEngine.getStoreFileManager().addCompactionResults(compactedFiles, result);
