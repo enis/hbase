@@ -865,10 +865,13 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
             getCurrentAssignmentSnapshot(servers, regions);
     int uniqueRacks = getUniqueRacks(servers);
     ServerName server = null;
+    int serversConsidered = 0;
     do {
       server = servers.get(RANDOM.nextInt(servers.size()));
-    } while (servers.size() != 1 && wouldLowerAvailability(currentAssignments.getFirst(),
-        currentAssignments.getSecond(), uniqueRacks, server, regionInfo));
+      serversConsidered++;
+    } while (servers.size() != serversConsidered &&
+        wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
+            uniqueRacks, server, regionInfo));
     return server;
   }
 
@@ -936,34 +939,35 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       if (localServers.isEmpty()) {
         // No servers on the new cluster match up with this hostname,
         // assign randomly.
-        ServerName randomServer = null;
-        do {
-          randomServer = servers.get(RANDOM.nextInt(servers.size()));
-        } while (servers.size() != 1 && wouldLowerAvailability(currentAssignments.getFirst(),
-            currentAssignments.getSecond(), uniqueRacks, randomServer, region));
-        assignments.get(randomServer).add(region);
-        // also update the assignments for checking availability
-        updateAvailabilityCheckerMaps(assignments.get(randomServer), randomServer,
-            currentAssignments.getFirst(), currentAssignments.getSecond());
+        assignToRandomServerFromList(servers, assignments, uniqueRacks, currentAssignments, region);
         numRandomAssignments++;
         if (oldServerName != null) oldHostsNoLongerPresent.add(oldServerName.getHostname());
       } else if (localServers.size() == 1) {
         // the usual case - one new server on same host
-        assignments.get(localServers.get(0)).add(region);
-        numRetainedAssigments++;
-      } else {
-        // multiple new servers in the cluster on this same host
-        int size = localServers.size();
-        ServerName target = null;
-        do {
-          target = localServers.get(RANDOM.nextInt(size));
-        } while (localServers.size() != 1 && wouldLowerAvailability(currentAssignments.getFirst(),
-            currentAssignments.getSecond(), uniqueRacks, target, region));
+        ServerName target = localServers.get(0); 
         assignments.get(target).add(region);
         // also update the assignments for checking availability
         updateAvailabilityCheckerMaps(assignments.get(target), target,
             currentAssignments.getFirst(), currentAssignments.getSecond());
         numRetainedAssigments++;
+      } else {
+        // multiple new servers in the cluster on this same host
+        int size = localServers.size();
+        ServerName target = localServers.get(RANDOM.nextInt(size));
+        // if availability would be lowered by assigning to one server out of the many in the same host,
+        // we are sure that availability would be lowered if we assigned to some other server in the
+        // same host..
+        if (wouldLowerAvailability(currentAssignments.getFirst(),
+            currentAssignments.getSecond(), uniqueRacks, target, region)) {
+          assignToRandomServerFromList(servers, assignments, uniqueRacks, currentAssignments, region);
+          numRandomAssignments++;
+        } else {
+          assignments.get(target).add(region);
+          // also update the assignments for checking availability
+          updateAvailabilityCheckerMaps(assignments.get(target), target,
+              currentAssignments.getFirst(), currentAssignments.getSecond());
+          numRetainedAssigments++;
+        }
       }
     }
 
@@ -979,6 +983,24 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     LOG.info("Reassigned " + regions.size() + " regions. " + numRetainedAssigments
         + " retained the pre-restart assignment. " + randomAssignMsg);
     return assignments;
+  }
+
+  private void assignToRandomServerFromList(List<ServerName> servers,
+      Map<ServerName, List<HRegionInfo>> assignments, int uniqueRacks,
+      Pair<Map<ServerName, Set<HRegionInfo>>, Map<String, Set<HRegionInfo>>> currentAssignments,
+      HRegionInfo region) {
+    ServerName randomServer = null;
+    int serversConsidered = 0;
+    do {
+      randomServer = servers.get(RANDOM.nextInt(servers.size()));
+      serversConsidered++;
+    } while (servers.size() != serversConsidered && 
+        wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
+            uniqueRacks, randomServer, region));
+    assignments.get(randomServer).add(region);
+    // also update the assignments for checking availability
+    updateAvailabilityCheckerMaps(assignments.get(randomServer), randomServer,
+        currentAssignments.getFirst(), currentAssignments.getSecond());
   }
 
   private Pair<Map<ServerName, Set<HRegionInfo>>, Map<String, Set<HRegionInfo>>>
