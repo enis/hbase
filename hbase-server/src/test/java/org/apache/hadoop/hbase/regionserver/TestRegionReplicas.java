@@ -280,10 +280,13 @@ public class TestRegionReplicas {
       // force compaction
       HTU.compact(table.getName(), true);
 
-      Threads.sleep(4 * refreshPeriod);
-      assertGetRpc(hriSecondary, 42, true);
-      assertGetRpc(hriSecondary, 1042, true);
-      assertGetRpc(hriSecondary, 2042, true);
+      long wakeUpTime = System.currentTimeMillis() + 4 * refreshPeriod;
+      while (System.currentTimeMillis() < wakeUpTime) {
+        assertGetRpc(hriSecondary, 42, true);
+        assertGetRpc(hriSecondary, 1042, true);
+        assertGetRpc(hriSecondary, 2042, true);
+        Threads.sleep(10);
+      }
 
       // ensure that we see the compacted file only
       Assert.assertEquals(1, secondaryRegion.getStore(f).getStorefilesCount());

@@ -425,6 +425,10 @@ public class HRegion implements HeapSize { // , Writable{
   private final boolean deferredLogSyncDisabled;
   private final Durability durability;
 
+  //ts of last time regions store files are refreshed (if refreshing store files mode for region replicas)
+  private long lastFileRefreshTime;
+  private volatile boolean isStale; // whether the region replica is too stale to serve reads
+
   /**
    * HRegion constructor. This constructor should only be used for testing and
    * extensions.  Instances of HRegion should be instantiated with the
@@ -647,6 +651,8 @@ public class HRegion implements HeapSize { // , Writable{
     long nextSeqid = maxSeqId + 1;
     LOG.info("Onlined " + this.getRegionInfo().getShortNameToLog() +
       "; next sequenceid=" + nextSeqid);
+
+    this.lastFileRefreshTime = EnvironmentEdgeManager.currentTimeMillis();
 
     // A region can be reopened if failed a split; reset flags
     this.closing.set(false);
@@ -5269,7 +5275,8 @@ public class HRegion implements HeapSize { // , Writable{
    * @throws InterruptedIOException if interrupted while waiting for a lock
    */
   public void startRegionOperation()
-      throws NotServingRegionException, RegionTooBusyException, InterruptedIOException {
+      throws NotServingRegionException, RegionTooBusyException, InterruptedIOException,
+      IOException {
     startRegionOperation(Operation.ANY);
   }
 
@@ -5280,7 +5287,7 @@ public class HRegion implements HeapSize { // , Writable{
    * @throws InterruptedIOException
    */
   protected void startRegionOperation(Operation op) throws NotServingRegionException,
-      RegionTooBusyException, InterruptedIOException {
+      RegionTooBusyException, InterruptedIOException, IOException {
     switch (op) {
     case INCREMENT:
     case APPEND:
@@ -5296,6 +5303,9 @@ public class HRegion implements HeapSize { // , Writable{
       if (this.isRecovering() && (this.disallowWritesInRecovering ||
               (op != Operation.PUT && op != Operation.DELETE && op != Operation.BATCH_MUTATE))) {
         throw new RegionInRecoveryException(this.getRegionNameAsString() + " is recovering");
+      }
+      if (!this.getRegionInfo().isPrimaryReplica() && this.isStale) {
+        throw new IOException ("The region's files are stale. Cannot serve the request");
       }
       break;
     default:
@@ -5550,6 +5560,18 @@ public class HRegion implements HeapSize { // , Writable{
     compactionNumBytesCompacted.addAndGet(filesSizeCompacted);
 
     assert newValue >= 0;
+  }
+
+  public long getLastFileRefreshTime() {
+    return lastFileRefreshTime;
+  }
+
+  public void setLastFileRefreshTime(long lastFileRefreshTime) {
+    this.lastFileRefreshTime = lastFileRefreshTime;
+  }
+
+  public void setStale(boolean isStale) {
+    this.isStale = isStale;
   }
 
   /**
