@@ -865,11 +865,11 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
             getCurrentAssignmentSnapshot(servers, regions);
     int uniqueRacks = getUniqueRacks(servers);
     ServerName server = null;
-    int serversConsidered = 0;
+    Set<ServerName> serversConsidered = new HashSet<ServerName>();
     do {
       server = servers.get(RANDOM.nextInt(servers.size()));
-      serversConsidered++;
-    } while (servers.size() != serversConsidered &&
+      serversConsidered.add(server);
+    } while (servers.size() != serversConsidered.size() &&
         wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
             uniqueRacks, server, regionInfo));
     return server;
@@ -990,11 +990,11 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       Pair<Map<ServerName, Set<HRegionInfo>>, Map<String, Set<HRegionInfo>>> currentAssignments,
       HRegionInfo region) {
     ServerName randomServer = null;
-    int serversConsidered = 0;
+    Set<ServerName> serversConsidered = new HashSet<ServerName>();
     do {
       randomServer = servers.get(RANDOM.nextInt(servers.size()));
-      serversConsidered++;
-    } while (servers.size() != serversConsidered && 
+      serversConsidered.add(randomServer);
+    } while (servers.size() != serversConsidered.size() && 
         wouldLowerAvailability(currentAssignments.getFirst(), currentAssignments.getSecond(),
             uniqueRacks, randomServer, region));
     assignments.get(randomServer).add(region);

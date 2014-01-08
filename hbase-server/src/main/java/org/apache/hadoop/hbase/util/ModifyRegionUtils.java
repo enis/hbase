@@ -93,8 +93,8 @@ public abstract class ModifyRegionUtils {
     List<HRegionInfo> regionInfos = new ArrayList<HRegionInfo>();
     int primaryRegions = 0;
     for (final HRegionInfo newRegion : newRegions) {
+      regionInfos.add(newRegion);
       if (!newRegion.isPrimaryReplica()) {
-        regionInfos.add(newRegion); //TODO: can't we do this for both primary and replicas
         continue;
       }
       primaryRegions++;
@@ -120,9 +120,7 @@ public abstract class ModifyRegionUtils {
     try {
       // 4. wait for all regions to finish creation
       for (int i = 0; i < primaryRegions; i++) {
-        Future<HRegionInfo> future = completionService.take();
-        HRegionInfo regionInfo = future.get();
-        regionInfos.add(regionInfo);
+        completionService.take().get();
       }
     } catch (InterruptedException e) {
       LOG.error("Caught " + e + " during region creation");
