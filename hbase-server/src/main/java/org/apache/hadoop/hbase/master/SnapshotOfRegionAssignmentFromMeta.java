@@ -100,20 +100,32 @@ public class SnapshotOfRegionAssignmentFromMeta {
       public boolean visit(Result result) throws IOException {
         try {
           if (result ==  null || result.isEmpty()) return true;
-          Pair<HRegionInfo, ServerName> regionAndServer =
-              HRegionInfo.getHRegionInfoAndServerName(result);
-          HRegionInfo hri = regionAndServer.getFirst();
-          if (hri  == null) return true;
+          HRegionInfo hri = HRegionInfo.getHRegionInfo(result);
+          if (hri == null) return true;
           if (hri.getTable() == null) return true;
           if (disabledTables.contains(hri.getTable())) {
             return true;
           }
           // Are we to include split parents in the list?
           if (excludeOfflinedSplitParents && hri.isSplit()) return true;
-          // Add the current assignment to the snapshot
-          addAssignment(hri, regionAndServer.getSecond());
-          addRegion(hri);
-          
+          Pair<HRegionInfo,ServerName[]> pair =
+              HRegionInfo.getServerNamesFromMetaRowResult(result);
+          ServerName[] servers = pair.getSecond();
+
+          // Add the current assignment to the snapshot for all replicas
+          if (servers != null) {
+            for (int i = 0; i < servers.length; i++) {
+              hri = hri.getRegionInfoForReplica(i);
+              addAssignment(hri, servers[i]);
+              addRegion(hri);
+            }
+          } else {
+            // add a 'null' assignment. Required for map.keyset operation on the 
+            // return value from getRegionToRegionServerMap. The keyset should
+            // still contain the hri although the region is presently not assigned
+            addAssignment(hri, null);
+            addRegion(hri);
+          }
           // the code below is to handle favored nodes
           byte[] favoredNodes = result.getValue(HConstants.CATALOG_FAMILY,
               FavoredNodeAssignmentHelper.FAVOREDNODES_QUALIFIER);

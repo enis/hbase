@@ -1766,18 +1766,30 @@ MasterServices, Server {
   private HRegionInfo[] getHRegionInfos(HTableDescriptor hTableDescriptor,
     byte[][] splitKeys) {
     HRegionInfo[] hRegionInfos = null;
+    int numRegionReplicas = hTableDescriptor.getRegionReplication();
+    if (numRegionReplicas <= 0) {
+      LOG.warn("Invalid number of replicas per region in the table descriptor. Setting it to 1.");
+      numRegionReplicas = 1;
+    }
+    long regionId = System.currentTimeMillis();
     if (splitKeys == null || splitKeys.length == 0) {
-      hRegionInfos = new HRegionInfo[]{
-          new HRegionInfo(hTableDescriptor.getTableName(), null, null)};
+      hRegionInfos = new HRegionInfo[numRegionReplicas];
+      for (int i = 0; i < numRegionReplicas; i++) {
+        hRegionInfos[i] = new HRegionInfo(hTableDescriptor.getTableName(), null, null,
+                false, regionId, (short)i);
+      }
     } else {
       int numRegions = splitKeys.length + 1;
-      hRegionInfos = new HRegionInfo[numRegions];
+      hRegionInfos = new HRegionInfo[numRegions * numRegionReplicas];
       byte[] startKey = null;
       byte[] endKey = null;
       for (int i = 0; i < numRegions; i++) {
         endKey = (i == splitKeys.length) ? null : splitKeys[i];
-        hRegionInfos[i] =
-            new HRegionInfo(hTableDescriptor.getTableName(), startKey, endKey);
+        for (int j = 0; j < numRegionReplicas; j++) {
+          hRegionInfos[i*numRegionReplicas + j] =
+              new HRegionInfo(hTableDescriptor.getTableName(), startKey, endKey,
+                  false, regionId, (short)j);
+        }
         startKey = endKey;
       }
     }
@@ -3121,4 +3133,34 @@ MasterServices, Server {
     return tableNames;
   }
 
+  /**
+   * Get a list of replica regions that are:
+   * not recorded in meta yet. In the meta, we will
+   * record all the primary regions for sure. We might not have recorded the locations
+   * for the replicas since the replicas may not have been online yet, master restarted
+   * in the middle of assigning, ZK erased, etc.
+   * @param regionsRecordedInMeta the list of regions we know are recorded in meta
+   * either as a primary, or, as the location of a non-primary replica
+   * @param master
+   * @return list of replica regions (non-primary)
+   * @throws IOException
+   */
+  public static List<HRegionInfo> replicaRegionsNotRecordedInMeta(
+      Set<HRegionInfo> regionsRecordedInMeta, MasterServices master)throws IOException {
+    List<HRegionInfo> regionsNotRecordedInMeta = new ArrayList<HRegionInfo>();
+    for (HRegionInfo hri : regionsRecordedInMeta) {
+      TableName table = hri.getTable();
+      HTableDescriptor htd = master.getTableDescriptors().get(table);
+      // look at the HTD for the replica count. That's the source of truth
+      int desiredRegionReplication = htd.getRegionReplication();
+      // start from replicaID = 1 since the meta must have recorded the primary
+      // (e.g. at the time of createTable)
+      for (int i = 1; i < desiredRegionReplication; i++) {
+        HRegionInfo replica = hri.getRegionInfoForReplica(i);
+        if (regionsRecordedInMeta.contains(replica)) continue;
+        regionsNotRecordedInMeta.add(replica);
+      }
+    }
+    return regionsNotRecordedInMeta;
+  }
 }
