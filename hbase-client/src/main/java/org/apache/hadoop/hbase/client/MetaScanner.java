@@ -36,6 +36,7 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Pair;
 
 /**
  * Scanner class that contains the <code>hbase:meta</code> table scanning logic.
@@ -273,9 +274,15 @@ public class MetaScanner {
     MetaScannerVisitor visitor = new TableMetaScannerVisitor(tableName) {
       @Override
       public boolean processRowInternal(Result rowResult) throws IOException {
-        HRegionInfo info = getHRegionInfo(rowResult);
-        ServerName serverName = HRegionInfo.getServerName(rowResult);
-        regions.put(new UnmodifyableHRegionInfo(info), serverName);
+        Pair<HRegionInfo,ServerName[]> pair =
+            HRegionInfo.getServerNamesFromMetaRowResult(rowResult);
+        HRegionInfo info = pair.getFirst();
+        int replicaId = 0;
+        for (ServerName replica : pair.getSecond()) {
+          HRegionInfo replicaHri = info.getRegionInfoForReplica(replicaId);
+          regions.put(new UnmodifyableHRegionInfo(replicaHri), replica);
+          replicaId++;
+        }
         return true;
       }
     };
