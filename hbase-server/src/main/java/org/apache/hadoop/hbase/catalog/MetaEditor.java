@@ -19,7 +19,6 @@ package org.apache.hadoop.hbase.catalog;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
-import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,6 +61,7 @@ public class MetaEditor {
    */
   public static Put makePutFromRegionInfo(HRegionInfo regionInfo)
   throws IOException {
+    checkReplicaID(regionInfo);
     Put put = new Put(regionInfo.getRegionName());
     addRegionInfo(put, regionInfo);
     return put;
@@ -214,6 +214,7 @@ public class MetaEditor {
    * @throws IOException if problem connecting or updating meta
    */
   public static void addRegionToMeta(HTable meta, HRegionInfo regionInfo) throws IOException {
+    checkReplicaID(regionInfo);
     addRegionToMeta(meta, regionInfo, null, null);
   }
 
@@ -231,6 +232,9 @@ public class MetaEditor {
    */
   public static void addRegionToMeta(HTable meta, HRegionInfo regionInfo,
       HRegionInfo splitA, HRegionInfo splitB) throws IOException {
+    checkReplicaID(regionInfo);
+    checkReplicaID(splitA);
+    checkReplicaID(splitB);
     Put put = makePutFromRegionInfo(regionInfo);
     addDaughtersToPut(put, splitA, splitB);
     meta.put(put);
@@ -272,7 +276,9 @@ public class MetaEditor {
   throws IOException {
     List<Put> puts = new ArrayList<Put>();
     for (HRegionInfo regionInfo : regionInfos) {
-      puts.add(makePutFromRegionInfo(regionInfo));
+      if (regionInfo.getReplicaId() == HRegionInfo.REPLICA_ID_PRIMARY) {
+        puts.add(makePutFromRegionInfo(regionInfo));
+      }
     }
     putsToMetaTable(catalogTracker, puts);
     LOG.info("Added " + puts.size());
@@ -287,10 +293,11 @@ public class MetaEditor {
   public static void addDaughter(final CatalogTracker catalogTracker,
       final HRegionInfo regionInfo, final ServerName sn, final long openSeqNum)
   throws NotAllMetaRegionsOnlineException, IOException {
+    checkReplicaID(regionInfo);
     Put put = new Put(regionInfo.getRegionName());
     addRegionInfo(put, regionInfo);
     if (sn != null) {
-      addLocation(put, sn, openSeqNum);
+      addLocation(put, sn, openSeqNum, regionInfo.getReplicaId());
     }
     putToMetaTable(catalogTracker, put);
     LOG.info("Added daughter " + regionInfo.getEncodedName() +
@@ -312,6 +319,9 @@ public class MetaEditor {
       HRegionInfo mergedRegion, HRegionInfo regionA, HRegionInfo regionB,
       ServerName sn) throws IOException {
     HTable meta = MetaReader.getMetaHTable(catalogTracker);
+    checkReplicaID(mergedRegion);
+    checkReplicaID(regionA);
+    checkReplicaID(regionB);
     try {
       HRegionInfo copyOfMerged = new HRegionInfo(mergedRegion);
 
@@ -327,7 +337,7 @@ public class MetaEditor {
       Delete deleteB = makeDeleteFromRegionInfo(regionB);
 
       // The merged is a new region, openSeqNum = 1 is fine.
-      addLocation(putOfMerged, sn, 1);
+      addLocation(putOfMerged, sn, 1, mergedRegion.getReplicaId());
 
       byte[] tableRow = Bytes.toBytes(mergedRegion.getRegionNameAsString()
           + HConstants.DELIMITER);
@@ -352,6 +362,9 @@ public class MetaEditor {
       HRegionInfo parent, HRegionInfo splitA, HRegionInfo splitB,
       ServerName sn) throws IOException {
     HTable meta = MetaReader.getMetaHTable(catalogTracker);
+    checkReplicaID(parent);
+    checkReplicaID(splitA);
+    checkReplicaID(splitB);
     try {
       HRegionInfo copyOfParent = new HRegionInfo(parent);
       copyOfParent.setOffline(true);
@@ -365,8 +378,8 @@ public class MetaEditor {
       Put putA = makePutFromRegionInfo(splitA);
       Put putB = makePutFromRegionInfo(splitB);
 
-      addLocation(putA, sn, 1); //these are new regions, openSeqNum = 1 is fine.
-      addLocation(putB, sn, 1);
+      addLocation(putA, sn, 1, parent.getReplicaId()); //these are new regions, openSeqNum = 1 is fine.
+      addLocation(putB, sn, 1, parent.getReplicaId());
 
       byte[] tableRow = Bytes.toBytes(parent.getRegionNameAsString() + HConstants.DELIMITER);
       multiMutate(meta, tableRow, putParent, putA, putB);
@@ -399,29 +412,6 @@ public class MetaEditor {
     } catch (ServiceException ex) {
       ProtobufUtil.toIOException(ex);
     }
-  }
-
-
-  /**
-   * Updates the location of the specified hbase:meta region in ROOT to be the
-   * specified server hostname and startcode.
-   * <p>
-   * Uses passed catalog tracker to get a connection to the server hosting
-   * ROOT and makes edits to that region.
-   *
-   * @param catalogTracker catalog tracker
-   * @param regionInfo region to update location of
-   * @param sn Server name
-   * @param openSeqNum the latest sequence number obtained when the region was open
-   * @throws IOException
-   * @throws ConnectException Usually because the regionserver carrying hbase:meta
-   * is down.
-   * @throws NullPointerException Because no -ROOT- server connection
-   */
-  public static void updateMetaLocation(CatalogTracker catalogTracker,
-      HRegionInfo regionInfo, ServerName sn, long openSeqNum)
-  throws IOException, ConnectException {
-    updateLocation(catalogTracker, regionInfo, sn, openSeqNum);
   }
 
   /**
@@ -458,8 +448,9 @@ public class MetaEditor {
   private static void updateLocation(final CatalogTracker catalogTracker,
       HRegionInfo regionInfo, ServerName sn, long openSeqNum)
   throws IOException {
-    Put put = new Put(regionInfo.getRegionName());
-    addLocation(put, sn, openSeqNum);
+    // region replicas are kept in the primary region's row
+    Put put = new Put(regionInfo.getPrimaryRegionInfo().getRegionName());
+    addLocation(put, sn, openSeqNum, regionInfo.getReplicaId());
     putToCatalogTable(catalogTracker, put);
     LOG.info("Updated row " + regionInfo.getRegionNameAsString() +
       " with server=" + sn);
@@ -474,6 +465,7 @@ public class MetaEditor {
   public static void deleteRegion(CatalogTracker catalogTracker,
       HRegionInfo regionInfo)
   throws IOException {
+    checkReplicaID(regionInfo);
     Delete delete = new Delete(regionInfo.getRegionName());
     deleteFromMetaTable(catalogTracker, delete);
     LOG.info("Deleted " + regionInfo.getRegionNameAsString());
@@ -489,7 +481,9 @@ public class MetaEditor {
       List<HRegionInfo> regionsInfo) throws IOException {
     List<Delete> deletes = new ArrayList<Delete>(regionsInfo.size());
     for (HRegionInfo hri: regionsInfo) {
-      deletes.add(new Delete(hri.getRegionName()));
+      if (hri.getReplicaId() == HRegionInfo.REPLICA_ID_PRIMARY) {
+        deletes.add(new Delete(hri.getRegionName()));
+      }
     }
     deleteFromMetaTable(catalogTracker, deletes);
     LOG.info("Deleted " + regionsInfo);
@@ -508,11 +502,13 @@ public class MetaEditor {
     List<Mutation> mutation = new ArrayList<Mutation>();
     if (regionsToRemove != null) {
       for (HRegionInfo hri: regionsToRemove) {
+        checkReplicaID(hri);
         mutation.add(new Delete(hri.getRegionName()));
       }
     }
     if (regionsToAdd != null) {
       for (HRegionInfo hri: regionsToAdd) {
+        checkReplicaID(hri);
         mutation.add(makePutFromRegionInfo(hri));
       }
     }
@@ -551,6 +547,7 @@ public class MetaEditor {
    */
   public static void deleteMergeQualifiers(CatalogTracker catalogTracker,
       final HRegionInfo mergedRegion) throws IOException {
+    checkReplicaID(mergedRegion);
     Delete delete = new Delete(mergedRegion.getRegionName());
     delete.deleteColumns(HConstants.CATALOG_FAMILY, HConstants.MERGEA_QUALIFIER);
     delete.deleteColumns(HConstants.CATALOG_FAMILY, HConstants.MERGEB_QUALIFIER);
@@ -568,13 +565,20 @@ public class MetaEditor {
     return p;
   }
 
-  private static Put addLocation(final Put p, final ServerName sn, long openSeqNum) {
-    p.addImmutable(HConstants.CATALOG_FAMILY, HConstants.SERVER_QUALIFIER,
+  private static Put addLocation(final Put p, final ServerName sn, long openSeqNum, int replicaId) {
+    p.addImmutable(HConstants.CATALOG_FAMILY, MetaReader.getServerColumn(replicaId),
       Bytes.toBytes(sn.getHostAndPort()));
-    p.addImmutable(HConstants.CATALOG_FAMILY, HConstants.STARTCODE_QUALIFIER,
+    p.addImmutable(HConstants.CATALOG_FAMILY, MetaReader.getStartCodeColumn(replicaId),
       Bytes.toBytes(sn.getStartcode()));
-    p.addImmutable(HConstants.CATALOG_FAMILY, HConstants.SEQNUM_QUALIFIER,
+    p.addImmutable(HConstants.CATALOG_FAMILY, MetaReader.getSeqNumColumn(replicaId),
         Bytes.toBytes(openSeqNum));
     return p;
+  }
+
+  private static void checkReplicaID(HRegionInfo region) throws IOException {
+    if (region != null && region.getReplicaId() != HRegionInfo.REPLICA_ID_PRIMARY) {
+      throw new IOException("Unexpected deleteRegion came for a replicaId " +
+          region.getReplicaId() + ". HRegionInfo " + region.getRegionNameAsString());
+    }
   }
 }
