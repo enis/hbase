@@ -1752,6 +1752,7 @@ public class HBaseFsck extends Configured {
     if (hbi.containsOnlyHdfsEdits()) {
       return;
     }
+    if (hbi.isSkipChecks()) return;
     if (inMeta && inHdfs && isDeployed && deploymentMatchesMeta && shouldBeDeployed) {
       return;
     } else if (inMeta && inHdfs && !shouldBeDeployed && !isDeployed) {
@@ -1916,13 +1917,11 @@ public class HBaseFsck extends Configured {
    */
   SortedMap<TableName, TableInfo> checkIntegrity() throws IOException {
     tablesInfo = new TreeMap<TableName,TableInfo> ();
-    List<HbckInfo> noHDFSRegionInfos = new ArrayList<HbckInfo>();
     LOG.debug("There are " + regionInfoMap.size() + " region info entries");
     for (HbckInfo hbi : regionInfoMap.values()) {
       // Check only valid, working regions
       if (hbi.metaEntry == null) {
         // this assumes that consistency check has run loadMetaEntry
-        noHDFSRegionInfos.add(hbi);
         Path p = hbi.getHdfsRegionDir();
         if (p == null) {
           errors.report("No regioninfo in Meta or HDFS. " + hbi);
@@ -2894,6 +2893,10 @@ public class HBaseFsck extends Configured {
     }
 
     public synchronized void addServer(HRegionInfo hri, ServerName server) {
+      if (!hri.isPrimaryReplica()) {
+        // skip the hbck tests for the read only replica regions
+        this.setSkipChecks(true);
+      }
       OnlineEntry rse = new OnlineEntry() ;
       rse.hri = hri;
       rse.hsa = server;
