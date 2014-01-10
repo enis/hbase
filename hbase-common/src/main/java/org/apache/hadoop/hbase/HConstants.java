@@ -387,13 +387,19 @@ public final class HConstants {
   public static final byte [] REGIONINFO_QUALIFIER = Bytes.toBytes(REGIONINFO_QUALIFIER_STR);
 
   /** The server column qualifier */
-  public static final byte [] SERVER_QUALIFIER = Bytes.toBytes("server");
+  public static final String SERVER_QUALIFIER_STR = "server";
+  /** The server column qualifier */
+  public static final byte [] SERVER_QUALIFIER = Bytes.toBytes(SERVER_QUALIFIER_STR);
 
   /** The startcode column qualifier */
-  public static final byte [] STARTCODE_QUALIFIER = Bytes.toBytes("serverstartcode");
+  public static final String STARTCODE_QUALIFIER_STR = "serverstartcode";
+  /** The startcode column qualifier */
+  public static final byte [] STARTCODE_QUALIFIER = Bytes.toBytes(STARTCODE_QUALIFIER_STR);
 
   /** The open seqnum column qualifier */
-  public static final byte [] SEQNUM_QUALIFIER = Bytes.toBytes("seqnumDuringOpen");
+  public static final String SEQNUM_QUALIFIER_STR = "seqnumDuringOpen";
+  /** The open seqnum column qualifier */
+  public static final byte [] SEQNUM_QUALIFIER = Bytes.toBytes(SEQNUM_QUALIFIER_STR);
 
   /** The lower-half split region column qualifier */
   public static final byte [] SPLITA_QUALIFIER = Bytes.toBytes("splitA");
@@ -972,6 +978,13 @@ public final class HConstants {
 
   /** Configuration key for enabling HLog encryption, a boolean */
   public static final String ENABLE_WAL_ENCRYPTION = "hbase.regionserver.wal.encryption";
+
+  /**
+   * The period (in milliseconds) for refreshing the store files for the secondary regions.
+   */
+  public static final String REGIONSERVER_STOREFILE_REFRESH_PERIOD
+    = "hbase.regionserver.storefile.refresh.period";
+  public static final int DEFAULT_REGIONSERVER_STOREFILE_REFRESH_PERIOD = 0; //disabled by default
 
   private HConstants() {
     // Can't be instantiated with this ctor.

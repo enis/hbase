@@ -17,23 +17,6 @@
  */
 package org.apache.hadoop.hbase.catalog;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.ServerName;
-import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HTable;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.ResultScanner;
-import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.Pair;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +24,23 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.ResultScanner;
+import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Pair;
 
 /**
  * Reads region and assignment information from <code>hbase:meta</code>.
@@ -61,6 +61,9 @@ public class MetaReader {
     System.arraycopy(HRegionInfo.FIRST_META_REGIONINFO.getRegionName(), 0,
       META_REGION_PREFIX, 0, len);
   }
+
+  /** The delimiter for meta columns for replicaIds > 0 */
+  public static char META_REPLICA_ID_DELIMITER = '_';
 
   /**
    * Performs a full scan of <code>hbase:meta</code>, skipping regions from any
@@ -228,6 +231,7 @@ public class MetaReader {
   public static Pair<HRegionInfo, ServerName> getRegion(
       CatalogTracker catalogTracker, byte [] regionName)
   throws IOException {
+    // TODO: fix for region replicas
     Get get = new Get(regionName);
     get.addFamily(HConstants.CATALOG_FAMILY);
     Result r = get(getCatalogHTable(catalogTracker), get);
@@ -436,7 +440,7 @@ public class MetaReader {
     // Make a version of CollectingVisitor that collects HRegionInfo and ServerAddress
     CollectingVisitor<Pair<HRegionInfo, ServerName>> visitor =
         new CollectingVisitor<Pair<HRegionInfo, ServerName>>() {
-      private Pair<HRegionInfo, ServerName> current = null;
+      private List<Pair<HRegionInfo, ServerName>> current = null;
 
       @Override
       public boolean visit(Result r) throws IOException {
@@ -448,16 +452,26 @@ public class MetaReader {
         }
         if (!isInsideTable(hri, tableName)) return false;
         if (excludeOfflinedSplitParents && hri.isSplitParent()) return true;
-        ServerName sn = HRegionInfo.getServerName(r);
-        // Populate this.current so available when we call #add
-        this.current = new Pair<HRegionInfo, ServerName>(hri, sn);
+        Pair<HRegionInfo,ServerName[]> pair = HRegionInfo.getServerNamesFromMetaRowResult(r);
+        this.current = new ArrayList<Pair<HRegionInfo, ServerName>>(2);
+        int replicaId = 0;
+        if (pair.getSecond() == null) {
+          this.current.add(new Pair<HRegionInfo, ServerName>(hri.getRegionInfoForReplica(replicaId), null));
+        } else {
+          for (ServerName sn : pair.getSecond()) {
+            // Populate this.current so available when we call #add
+            this.current.add(
+                new Pair<HRegionInfo, ServerName>(hri.getRegionInfoForReplica(replicaId), sn));
+            replicaId++;
+          }
+        }
         // Else call super and add this Result to the collection.
         return super.visit(r);
       }
 
       @Override
       void add(Result r) {
-        this.results.add(this.current);
+        this.results.addAll(this.current);
       }
     };
     fullScan(catalogTracker, visitor, getTableStartRowForMeta(tableName));
@@ -481,19 +495,19 @@ public class MetaReader {
       @Override
       void add(Result r) {
         if (r == null || r.isEmpty()) return;
-        ServerName sn = HRegionInfo.getServerName(r);
-        if (sn != null && sn.equals(serverName)) this.results.add(r);
+        Pair<HRegionInfo,ServerName[]> pair = HRegionInfo.getServerNamesFromMetaRowResult(r);
+        if (pair == null || pair.getFirst() == null || pair.getSecond() == null) return;
+        int replicaId = 0;
+        for (ServerName sn : pair.getSecond()) {
+          if (sn != null && sn.equals(serverName)) {
+            this.results.add(r);
+            hris.put(pair.getFirst().getRegionInfoForReplica(replicaId), r);
+          }
+          replicaId++;
+        }
       }
     };
     fullScan(catalogTracker, v);
-    List<Result> results = v.getResults();
-    if (results != null && !results.isEmpty()) {
-      // Convert results to Map keyed by HRI
-      for (Result r: results) {
-        Pair<HRegionInfo, ServerName> p = HRegionInfo.getHRegionInfoAndServerName(r);
-        if (p != null && p.getFirst() != null) hris.put(p.getFirst(), r);
-      }
-    }
     return hris;
   }
 
@@ -547,6 +561,27 @@ public class MetaReader {
       metaTable.close();
     }
     return;
+  }
+
+  public static byte[] getServerColumn(int replicaId) {
+    return replicaId == 0
+        ? HConstants.SERVER_QUALIFIER
+        : Bytes.toBytes(HConstants.SERVER_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
+          + HRegionInfo.REPLICA_ID_FORMAT.format(replicaId));
+  }
+
+  public static byte[] getStartCodeColumn(int replicaId) {
+    return replicaId == 0
+        ? HConstants.STARTCODE_QUALIFIER
+        : Bytes.toBytes(HConstants.STARTCODE_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
+          + HRegionInfo.REPLICA_ID_FORMAT.format(replicaId));
+  }
+
+  public static byte[] getSeqNumColumn(int replicaId) {
+    return replicaId == 0
+        ? HConstants.SEQNUM_QUALIFIER
+        : Bytes.toBytes(HConstants.SEQNUM_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
+          + HRegionInfo.REPLICA_ID_FORMAT.format(replicaId));
   }
 
   /**
