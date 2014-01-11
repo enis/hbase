@@ -245,6 +245,7 @@ public class Get extends Query
    * Method for retrieving the get's row
    * @return row
    */
+  @Override
   public byte [] getRow() {
     return this.row;
   }
@@ -283,14 +284,6 @@ public class Get extends Query
     return this.tr;
   }
 
-  public Consistency getConsistency() {
-    return consistency;
-  }
-
-  public void setConsistency(Consistency consistency) {
-    this.consistency = consistency;
-  }
-
   /**
    * Method for retrieving the keys in the familyMap
    * @return keys in the current familyMap
@@ -324,6 +317,22 @@ public class Get extends Query
   }
 
   /**
+   * Returns the consistency level for this operation
+   * @return the consistency level
+   */
+  public Consistency getConsistency() {
+    return consistency;
+  }
+
+  /**
+   * Sets the consistency level for this operation
+   * @param consistency the consistency level
+   */
+  public void setConsistency(Consistency consistency) {
+    this.consistency = consistency;
+  }
+
+  /**
    * Compile the table and column family (i.e. schema) information
    * into a String. Useful for parsing and aggregation by debugging,
    * logging, and administration tools.
@@ -352,7 +361,7 @@ public class Get extends Query
   public Map<String, Object> toMap(int maxCols) {
     // we start with the fingerprint map and build on top of it.
     Map<String, Object> map = getFingerprint();
-    // replace the fingerprint's simple list of families with a 
+    // replace the fingerprint's simple list of families with a
     // map from column families to lists of qualifiers and kv details
     Map<String, List<String>> columns = new HashMap<String, List<String>>();
     map.put("families", columns);
@@ -385,8 +394,8 @@ public class Get extends Query
           }
           familyList.add(Bytes.toStringBinary(column));
         }
-      }   
-    }   
+      }
+    }
     map.put("totalColumns", colCount);
     if (this.filter != null) {
       map.put("filter", this.filter.toString());

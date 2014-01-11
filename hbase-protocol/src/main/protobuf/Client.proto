@@ -52,7 +52,7 @@ message Column {
 }
 
 enum Consistency {
-  STRONG = 0;
+  STRONG   = 0;
   EVENTUAL = 1;
 }
 
