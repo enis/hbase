@@ -43,6 +43,7 @@ import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.RegionLoad;
 import org.apache.hadoop.hbase.ServerLoad;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.master.RackManager;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.net.DNSToSwitchMapping;
@@ -518,7 +519,37 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
       }
     }
 
-    testWithCluster(newServerMap, true, true);
+    testWithCluster(newServerMap, null, true, true);
+  }
+
+  private static class ForTestRackManager extends RackManager {
+    int numRacks;
+    public ForTestRackManager(int numRacks) {
+      this.numRacks = numRacks;
+    }
+    @Override
+    public String getRack(ServerName server) {
+      return "rack_" + (server.hashCode() % numRacks);
+    }
+  }
+
+  @Test (timeout = 120000)
+  public void testRegionReplicationOnMidClusterWithRacks() {
+    conf.setLong(StochasticLoadBalancer.MAX_STEPS_KEY, 2000000L);
+    conf.setFloat("hbase.master.balancer.stochastic.maxMovePercent", 1.0f);
+    conf.setLong("hbase.master.balancer.stochastic.maxRunningTime", 45 * 1000); // 45 sec
+    loadBalancer.setConf(conf);
+    int numNodes = 80;
+    int numRegions = numNodes * 50;
+    int replication = 4; // 4 replicas per region
+    int numRegionsPerServer = 40;
+    int numTables = 10;
+    int numRacks = 5; // all replicas should be on a different rack
+    Map<ServerName, List<HRegionInfo>> serverMap =
+        createServerMap(numNodes, numRegions, numRegionsPerServer, replication, numTables);
+    RackManager rm = new ForTestRackManager(numRacks);
+
+    testWithCluster(serverMap, rm, true, true);
   }
 
   @Test (timeout = 60000)
@@ -542,15 +573,16 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
       boolean assertFullyBalanced, boolean assertFullyBalancedForReplicas) {
     Map<ServerName, List<HRegionInfo>> serverMap =
         createServerMap(numNodes, numRegions, numRegionsPerServer, replication, numTables);
-    testWithCluster(serverMap, assertFullyBalanced, assertFullyBalancedForReplicas);
+    testWithCluster(serverMap, null, assertFullyBalanced, assertFullyBalancedForReplicas);
   }
 
 
   protected void testWithCluster(Map<ServerName, List<HRegionInfo>> serverMap,
-      boolean assertFullyBalanced, boolean assertFullyBalancedForReplicas) {
+      RackManager rackManager, boolean assertFullyBalanced, boolean assertFullyBalancedForReplicas) {
     List<ServerAndLoad> list = convertToList(serverMap);
     LOG.info("Mock Cluster : " + printMock(list) + " " + printStats(list));
 
+    loadBalancer.setRackManager(rackManager);
     // Run the balancer.
     List<RegionPlan> plans = loadBalancer.balanceCluster(serverMap);
     assertNotNull(plans);
@@ -566,7 +598,7 @@ public class TestStochasticLoadBalancer extends BalancerTestBase {
       List<RegionPlan> secondPlans =  loadBalancer.balanceCluster(serverMap);
       assertNull(secondPlans);
       if (assertFullyBalancedForReplicas) {
-        assertRegionReplicaPlacement(serverMap);
+        assertRegionReplicaPlacement(serverMap, rackManager);
       }
     }
   }

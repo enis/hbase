@@ -36,6 +36,7 @@ import java.util.TreeSet;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.master.RackManager;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Assert;
@@ -87,9 +88,9 @@ public class BalancerTestBase {
   /**
    * Checks whether region replicas are not hosted on the same host.
    */
-  public void assertRegionReplicaPlacement(Map<ServerName, List<HRegionInfo>> serverMap) {
-
+  public void assertRegionReplicaPlacement(Map<ServerName, List<HRegionInfo>> serverMap, RackManager rackManager) {
     TreeMap<String, Set<HRegionInfo>> regionsPerHost = new TreeMap<String, Set<HRegionInfo>>();
+    TreeMap<String, Set<HRegionInfo>> regionsPerRack = new TreeMap<String, Set<HRegionInfo>>();
 
     for (Entry<ServerName, List<HRegionInfo>> entry : serverMap.entrySet()) {
       String hostname = entry.getKey().getHostname();
@@ -98,10 +99,31 @@ public class BalancerTestBase {
         infos = new HashSet<HRegionInfo>();
         regionsPerHost.put(hostname, infos);
       }
+
       for (HRegionInfo info : entry.getValue()) {
         HRegionInfo primaryInfo = info.getPrimaryRegionInfo();
         if (!infos.add(primaryInfo)) {
           Assert.fail("Two or more region replicas are hosted on the same host after balance");
+        }
+      }
+    }
+
+    if (rackManager == null) {
+      return;
+    }
+
+    for (Entry<ServerName, List<HRegionInfo>> entry : serverMap.entrySet()) {
+      String rack = rackManager.getRack(entry.getKey());
+      Set<HRegionInfo> infos = regionsPerRack.get(rack);
+      if (infos == null) {
+        infos = new HashSet<HRegionInfo>();
+        regionsPerRack.put(rack, infos);
+      }
+
+      for (HRegionInfo info : entry.getValue()) {
+        HRegionInfo primaryInfo = info.getPrimaryRegionInfo();
+        if (!infos.add(primaryInfo)) {
+          Assert.fail("Two or more region replicas are hosted on the same rack after balance");
         }
       }
     }

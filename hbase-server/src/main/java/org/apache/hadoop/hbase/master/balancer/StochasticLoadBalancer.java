@@ -42,6 +42,7 @@ import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.master.balancer.BaseLoadBalancer.Cluster.Action;
 import org.apache.hadoop.hbase.master.balancer.BaseLoadBalancer.Cluster.Action.Type;
+import org.apache.hadoop.hbase.master.balancer.BaseLoadBalancer.Cluster.AssignRegionAction;
 import org.apache.hadoop.hbase.master.balancer.BaseLoadBalancer.Cluster.MoveRegionAction;
 import org.apache.hadoop.hbase.master.balancer.BaseLoadBalancer.Cluster.SwapRegionsAction;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -105,7 +106,6 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
   private static final Random RANDOM = new Random(System.currentTimeMillis());
   private static final Log LOG = LogFactory.getLog(StochasticLoadBalancer.class);
 
-  private final RegionLocationFinder regionFinder = new RegionLocationFinder();
   private ClusterStatus clusterStatus = null;
   Map<String, Deque<RegionLoad>> loads = new HashMap<String, Deque<RegionLoad>>();
 
@@ -126,8 +126,6 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
   @Override
   public void setConf(Configuration conf) {
     super.setConf(conf);
-
-    regionFinder.setConf(conf);
 
     maxSteps = conf.getInt(MAX_STEPS_KEY, maxSteps);
 
@@ -159,6 +157,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       localityCost,
       new TableSkewCostFunction(conf),
       new RegionReplicaHostCostFunction(conf),
+      new RegionReplicaRackCostFunction(conf),
       regionLoadFunctions[0],
       regionLoadFunctions[1],
       regionLoadFunctions[2],
@@ -174,7 +173,6 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
   @Override
   public void setClusterStatus(ClusterStatus st) {
     super.setClusterStatus(st);
-    regionFinder.setClusterStatus(st);
     this.clusterStatus = st;
     updateRegionLoad();
     for(CostFromRegionLoadFunction cost : regionLoadFunctions) {
@@ -185,7 +183,6 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
   @Override
   public void setMasterServices(MasterServices masterServices) {
     super.setMasterServices(masterServices);
-    this.regionFinder.setServices(masterServices);
     this.localityCost.setServices(masterServices);
     this.localityCandidateGenerator.setServices(masterServices);
 
@@ -343,7 +340,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
   }
 
   protected void updateCostsWithAction(Cluster cluster, Action action) {
-    for (CostFunction c:costFunctions) {
+    for (CostFunction c : costFunctions) {
       c.postAction(cluster, action);
     }
   }
@@ -706,6 +703,10 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     void postAction(Cluster cluster, Action action) {
       switch (action.type) {
       case NULL: break;
+      case ASSIGN_REGION:
+        AssignRegionAction ar = (AssignRegionAction) action;
+        regionMoved(cluster, ar.region, -1, ar.server);
+        break;
       case MOVE_REGION:
         MoveRegionAction mra = (MoveRegionAction) action;
         regionMoved(cluster, mra.region, mra.fromServer, mra.toServer);
@@ -719,6 +720,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
         throw new RuntimeException("Uknown action:" + action.type);
       }
     }
+
     protected void regionMoved(Cluster cluster, int region, int oldServer, int newServer) {
     }
 
@@ -1105,17 +1107,17 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
   /**
    * A cost function for region replicas. We give a very high cost to hosting
-   * replicas of the same region in the same server. We do not prevent the case
+   * replicas of the same region in the same host. We do not prevent the case
    * though, since if numReplicas > numRegionServers, we still want to keep the
    * replica open.
    */
   public static class RegionReplicaHostCostFunction extends CostFunction {
     private static final String REGION_REPLICA_HOST_COST_KEY =
         "hbase.master.balancer.stochastic.regionReplicaHostCostKey";
-    private static final float DEFAULT_REGION_REPLICA_HOST_COST_KEY = 100000000;
+    private static final float DEFAULT_REGION_REPLICA_HOST_COST_KEY = 100000;
 
     long maxCost = 0;
-    long[] costsPerHost;
+    long[] costsPerGroup; // group is either host or rack
 
     public RegionReplicaHostCostFunction(Configuration conf) {
       super(conf);
@@ -1124,8 +1126,15 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
     @Override
     void init(Cluster cluster) {
-      super.init(cluster);
       // max cost is the case where every region replica is hosted together regardless of host
+      maxCost = cluster.numHosts > 1 ? getMaxCost(cluster) : 0;
+      costsPerGroup = new long[cluster.numHosts];
+      for (int i = 0 ; i < cluster.regionsByPrimaryPerHost.length; i++) {
+        costsPerGroup[i] = costPerGroup(cluster.regionsByPrimaryPerHost[i]);
+      }
+    }
+
+    long getMaxCost(Cluster cluster) {
       int[] regionsByPrimary = new int[cluster.numRegions];
       for (int i = 0; i < cluster.regions.length; i++) {
         int primaryIndex = cluster.regionIndexToPrimaryIndex[i];
@@ -1135,11 +1144,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       Arrays.sort(regionsByPrimary);
 
       // compute numReplicas from the sorted array
-      maxCost = costPerHost(regionsByPrimary);
-      costsPerHost = new long[cluster.numHosts];
-      for (int i = 0 ; i < cluster.regionsByPrimaryPerHost.length; i++) {
-        costsPerHost[i] = costPerHost(cluster.regionsByPrimaryPerHost[i]);
-      }
+      return costPerGroup(regionsByPrimary);
     }
 
     @Override
@@ -1149,13 +1154,13 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       }
 
       long totalCost = 0;
-      for (int i = 0 ; i < costsPerHost.length; i++) {
-        totalCost += costsPerHost[i];
+      for (int i = 0 ; i < costsPerGroup.length; i++) {
+        totalCost += costsPerGroup[i];
       }
       return scale(0, maxCost, totalCost);
     }
 
-    protected long costPerHost(int[] regionsByPrimary) {
+    protected long costPerGroup(int[] regionsByPrimary) {
       long cost = 0;
       int currentPrimary = -1;
       int currentPrimaryIndex = -1;
@@ -1164,7 +1169,9 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
         if (primary != currentPrimary) {
           int numReplicas = j - currentPrimaryIndex;
           // square the cost
-          cost += (numReplicas - 1) * (numReplicas - 1);
+          if (numReplicas > 1) {
+            cost += (numReplicas - 1) * (numReplicas - 1);
+          }
           currentPrimary = primary;
           currentPrimaryIndex = j;
         }
@@ -1177,11 +1184,46 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     protected void regionMoved(Cluster cluster, int region, int oldServer, int newServer) {
       int oldHost = cluster.serverIndexToHostIndex[oldServer];
       int newHost = cluster.serverIndexToHostIndex[newServer];
-      costsPerHost[oldHost] = costPerHost(cluster.regionsByPrimaryPerHost[oldHost]);
-      costsPerHost[newHost] = costPerHost(cluster.regionsByPrimaryPerHost[newHost]);
+      if (newHost != oldHost) {
+        costsPerGroup[oldHost] = costPerGroup(cluster.regionsByPrimaryPerHost[oldHost]);
+        costsPerGroup[newHost] = costPerGroup(cluster.regionsByPrimaryPerHost[newHost]);
+      }
     }
-
   }
 
-  //TODO RegionReplicaRackCostFunction
+  /**
+   * A cost function for region replicas for the rack distribution. We give a relatively high
+   * cost to hosting replicas of the same region in the same rack. We do not prevent the case
+   * though.
+   */
+  public static class RegionReplicaRackCostFunction extends RegionReplicaHostCostFunction {
+    private static final String REGION_REPLICA_RACK_COST_KEY =
+        "hbase.master.balancer.stochastic.regionReplicaRackCostKey";
+    private static final float DEFAULT_REGION_REPLICA_RACK_COST_KEY = 10000;
+
+    public RegionReplicaRackCostFunction(Configuration conf) {
+      super(conf);
+      this.setMultiplier(conf.getFloat(REGION_REPLICA_RACK_COST_KEY, DEFAULT_REGION_REPLICA_RACK_COST_KEY));
+    }
+
+    @Override
+    void init(Cluster cluster) {
+      // max cost is the case where every region replica is hosted together regardless of rack
+      maxCost = cluster.numRacks > 1 ? getMaxCost(cluster) : 0;
+      costsPerGroup = new long[cluster.numRacks];
+      for (int i = 0 ; i < cluster.regionsByPrimaryPerRack.length; i++) {
+        costsPerGroup[i] = costPerGroup(cluster.regionsByPrimaryPerRack[i]);
+      }
+    }
+
+    @Override
+    protected void regionMoved(Cluster cluster, int region, int oldServer, int newServer) {
+      int oldRack = cluster.serverIndexToRackIndex[oldServer];
+      int newRack = cluster.serverIndexToRackIndex[newServer];
+      if (newRack != oldRack) {
+        costsPerGroup[oldRack] = costPerGroup(cluster.regionsByPrimaryPerRack[oldRack]);
+        costsPerGroup[newRack] = costPerGroup(cluster.regionsByPrimaryPerRack[newRack]);
+      }
+    }
+  }
 }

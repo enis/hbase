@@ -117,7 +117,6 @@ public class RegionStates {
 
   private final ServerManager serverManager;
   private final Server server;
-  private final RackManager rackManager;
 
   // The maximum time to keep a log split info in region states map
   static final String LOG_SPLIT_TIME = "hbase.master.maximum.logsplit.keeptime";
@@ -134,7 +133,6 @@ public class RegionStates {
     deadServers = new HashMap<String, Long>();
     this.serverManager = serverManager;
     this.server = master;
-    this.rackManager = new RackManager(master.getConfiguration());
   }
 
   /**
@@ -143,54 +141,6 @@ public class RegionStates {
   @SuppressWarnings("unchecked")
   public synchronized Map<HRegionInfo, ServerName> getRegionAssignments() {
     return (Map<HRegionInfo, ServerName>)regionAssignments.clone();
-  }
-
-  /**
-   * Return the replicas for the regions grouped by ServerName and corresponding Racks
-   * @param regions
-   * @return a pair containing the groupings as Maps
-   */
-  synchronized Pair<Map<ServerName, Set<HRegionInfo>>, Map<String, Set<HRegionInfo>>>
-  getRegionAssignments(List<HRegionInfo> regions) {
-    Map<ServerName, Set<HRegionInfo>> replicaAssignments =
-        new TreeMap<ServerName, Set<HRegionInfo>>();
-    Map<String, Set<HRegionInfo>> rackAssignments =
-        new TreeMap<String, Set<HRegionInfo>>();
-    List <ServerName> servers = new ArrayList<ServerName>();
-
-    //what is being computed in the method below can also be maintained inline
-    //(in addToServerHoldings/removeFromServerHoldings) and on request, cloned and
-    //returned (just like getRegionAssignments() does), but in practice this
-    //method will be called with only a few regions and shouldn't be a big deal. Clone
-    //might be more expensive.
-    for (HRegionInfo region : regions) {
-      HRegionInfo primary = region.getPrimaryRegionInfo();
-      Set<ServerName> serversHostingRegionReplicas = regionReplicaToServer.get(primary);
-      if (serversHostingRegionReplicas != null) {
-        for (ServerName server : serversHostingRegionReplicas) {
-          Set<HRegionInfo> regionsOnServer = replicaAssignments.get(server);
-          if (regionsOnServer == null) {
-            regionsOnServer = new HashSet<HRegionInfo>(2);
-            replicaAssignments.put(server, regionsOnServer);
-          }
-          regionsOnServer.add(primary);
-          servers.add(server);
-        }
-      }
-    }
-
-    List<String> racks = rackManager.getRack(servers);
-    for (int i = 0; i < servers.size(); i++) {
-      Set<HRegionInfo> r = replicaAssignments.get(servers.get(i));
-      Set<HRegionInfo> regionsOnRack = rackAssignments.get(racks.get(i));
-      if (regionsOnRack == null) {
-        regionsOnRack = new HashSet<HRegionInfo>();
-        rackAssignments.put(racks.get(i), regionsOnRack);
-      }
-      regionsOnRack.addAll(r);
-    }
-    return new Pair<Map<ServerName, Set<HRegionInfo>>,
-        Map<String, Set<HRegionInfo>>>(replicaAssignments, rackAssignments);
   }
 
   public synchronized ServerName getRegionServerOfRegion(HRegionInfo hri) {
@@ -761,11 +711,7 @@ public class RegionStates {
       new HashMap<TableName, Map<ServerName,List<HRegionInfo>>>();
     synchronized (this) {
       if (!server.getConfiguration().getBoolean("hbase.master.loadbalance.bytable", false)) {
-        Map<ServerName, List<HRegionInfo>> svrToRegions =
-          new HashMap<ServerName, List<HRegionInfo>>(serverHoldings.size());
-        for (Map.Entry<ServerName, Set<HRegionInfo>> e: serverHoldings.entrySet()) {
-          svrToRegions.put(e.getKey(), new ArrayList<HRegionInfo>(e.getValue()));
-        }
+        Map<ServerName, List<HRegionInfo>> svrToRegions = getRegionAssignmentsByServer();
         result.put(TableName.valueOf("ensemble"), svrToRegions);
       } else {
         for (Map.Entry<ServerName, Set<HRegionInfo>> e: serverHoldings.entrySet()) {
@@ -799,6 +745,15 @@ public class RegionStates {
       }
     }
     return result;
+  }
+
+  protected synchronized Map<ServerName, List<HRegionInfo>> getRegionAssignmentsByServer() {
+    Map<ServerName, List<HRegionInfo>> regionsByServer =
+        new HashMap<ServerName, List<HRegionInfo>>(serverHoldings.size());
+    for (Map.Entry<ServerName, Set<HRegionInfo>> e: serverHoldings.entrySet()) {
+      regionsByServer.put(e.getKey(), new ArrayList<HRegionInfo>(e.getValue()));
+    }
+    return regionsByServer;
   }
 
   protected synchronized RegionState getRegionState(final HRegionInfo hri) {
