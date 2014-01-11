@@ -2639,7 +2639,7 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
     return getRegionByEncodedName(regionName, encodedRegionName);
   }
 
-  protected HRegion getRegionByEncodedName(String encodedRegionName)
+  public HRegion getRegionByEncodedName(String encodedRegionName)
       throws NotServingRegionException {
     return getRegionByEncodedName(null, encodedRegionName);
   }

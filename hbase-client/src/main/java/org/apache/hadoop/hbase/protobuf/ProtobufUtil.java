@@ -10,7 +10,7 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distr=ibuted on an "AS IS" BASIS,
+ * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
@@ -53,6 +53,7 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Tag;
 import org.apache.hadoop.hbase.client.Append;
+import org.apache.hadoop.hbase.client.Consistency;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Get;
@@ -457,7 +458,26 @@ public final class ProtobufUtil {
     if (proto.hasClosestRowBefore() && proto.getClosestRowBefore()){
       get.setClosestRowBefore(true);
     }
+    if (proto.hasConsistency()) {
+      get.setConsistency(toConsistency(proto.getConsistency()));
+    }
     return get;
+  }
+
+  public static Consistency toConsistency(ClientProtos.Consistency consistency) {
+    switch (consistency) {
+      case STRONG : return Consistency.STRONG;
+      case EVENTUAL : return Consistency.EVENTUAL;
+      default : return Consistency.STRONG;
+    }
+  }
+
+  public static ClientProtos.Consistency toConsistency(Consistency consistency) {
+    switch (consistency) {
+      case STRONG : return ClientProtos.Consistency.STRONG;
+      case EVENTUAL : return ClientProtos.Consistency.EVENTUAL;
+      default : return ClientProtos.Consistency.STRONG;
+    }
   }
 
   /**
@@ -996,6 +1016,10 @@ public final class ProtobufUtil {
     if (get.isClosestRowBefore()){
       builder.setClosestRowBefore(true);
     }
+    if (get.getConsistency() != null && get.getConsistency() != Consistency.STRONG) {
+      builder.setConsistency(toConsistency(get.getConsistency()));
+    }
+
     return builder.build();
   }
 
