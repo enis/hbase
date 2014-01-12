@@ -366,6 +366,8 @@ public class HRegion implements HeapSize { // , Writable{
     volatile boolean writesEnabled = true;
     // Set if region is read-only
     volatile boolean readOnly = false;
+    // Whether this is the primary replica
+    volatile boolean isPrimaryReplica = true;
 
     /**
      * Set flags that make this region read-only.
@@ -385,8 +387,17 @@ public class HRegion implements HeapSize { // , Writable{
       return this.flushRequested;
     }
 
+    void setReadOnlyAndReplicaStatus(boolean isPrimaryReplica, boolean isTableReadOnly) {
+      this.isPrimaryReplica = isPrimaryReplica;
+      if (!isTableReadOnly) {
+        setReadOnly(!isPrimaryReplica); // only primary can accept writes
+      } else {
+        setReadOnly(true);
+      }
+    }
+
     static final long HEAP_SIZE = ClassSize.align(
-        ClassSize.OBJECT + 5 * Bytes.SIZEOF_BOOLEAN);
+        ClassSize.OBJECT + 6 * Bytes.SIZEOF_BOOLEAN);
   }
 
   final WriteState writestate = new WriteState();
@@ -426,6 +437,10 @@ public class HRegion implements HeapSize { // , Writable{
   private final MetricsRegionWrapperImpl metricsRegionWrapper;
   private final boolean deferredLogSyncDisabled;
   private final Durability durability;
+
+  //ts of last time regions store files are refreshed (if refreshing store files mode for region replicas)
+  private long lastFileRefreshTime;
+  private volatile boolean isStale; // whether the region replica is too stale to serve reads
 
   /**
    * HRegion constructor. This constructor should only be used for testing and
@@ -648,7 +663,8 @@ public class HRegion implements HeapSize { // , Writable{
     fs.cleanupAnySplitDetritus();
     fs.cleanupMergesDir();
 
-    this.writestate.setReadOnly(this.htableDescriptor.isReadOnly());
+    this.writestate.setReadOnlyAndReplicaStatus(this.getRegionInfo().getReplicaId() == 0,
+        this.htableDescriptor.isReadOnly());
     this.writestate.flushRequested = false;
     this.writestate.compacting = 0;
 
@@ -667,6 +683,8 @@ public class HRegion implements HeapSize { // , Writable{
     }
     LOG.info("Onlined " + this.getRegionInfo().getShortNameToLog() +
       "; next sequenceid=" + nextSeqid);
+
+    this.lastFileRefreshTime = EnvironmentEdgeManager.currentTimeMillis();
 
     // A region can be reopened if failed a split; reset flags
     this.closing.set(false);
@@ -5614,6 +5632,9 @@ public class HRegion implements HeapSize { // , Writable{
               (op != Operation.PUT && op != Operation.DELETE && op != Operation.BATCH_MUTATE))) {
         throw new RegionInRecoveryException(this.getRegionNameAsString() + " is recovering");
       }
+      if (!this.getRegionInfo().isPrimaryReplica() && this.isStale) {
+        throw new IOException ("The region's files are stale. Cannot serve the request");
+      }
       break;
     default:
       break;
@@ -5908,6 +5929,18 @@ public class HRegion implements HeapSize { // , Writable{
    */
   private void setSequenceId(long value) {
     this.sequenceId.set(value);
+  }
+
+  public long getLastFileRefreshTime() {
+    return lastFileRefreshTime;
+  }
+
+  public void setLastFileRefreshTime(long lastFileRefreshTime) {
+    this.lastFileRefreshTime = lastFileRefreshTime;
+  }
+
+  public void setStale(boolean isStale) {
+    this.isStale = isStale;
   }
 
   /**
