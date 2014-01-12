@@ -23,15 +23,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.TableNotDisabledException;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.catalog.CatalogTracker;
@@ -50,7 +49,6 @@ import org.apache.hadoop.hbase.master.TableLockManager;
 import org.apache.hadoop.hbase.master.TableLockManager.TableLock;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.zookeeper.KeeperException;
-import org.cloudera.htrace.Trace;
 
 /**
  * Handler to run enable of a table.
@@ -85,6 +83,7 @@ public class EnableTableHandler extends EventHandler {
     this.services = services;
   }
 
+  @Override
   public EnableTableHandler prepare()
       throws TableNotFoundException, TableNotDisabledException, IOException {
     //acquire the table write lock, blocking
@@ -99,7 +98,7 @@ public class EnableTableHandler extends EventHandler {
         // retainAssignment is true only during recovery.  In normal case it is false
         if (!this.skipTableStateCheck) {
           throw new TableNotFoundException(tableName);
-        } 
+        }
         try {
           this.assignmentManager.getZKTable().removeEnablingTable(tableName, true);
           throw new TableNotFoundException(tableName);
@@ -199,9 +198,7 @@ public class EnableTableHandler extends EventHandler {
       List<HRegionInfo> unrecordedReplicas = HMaster.replicaRegionsNotRecordedInMeta(
           new HashSet<HRegionInfo>(regionsToAssign.keySet()), services);
       for (HRegionInfo h : unrecordedReplicas) {
-        regionsToAssign.put(h, 
-            this.assignmentManager.getBalancer().randomAssignment(h,
-                serverManager.getOnlineServersList()));
+        regionsToAssign.put(h, null);
       }
     }
     int regionsCount = regionsToAssign.size();
@@ -215,7 +212,7 @@ public class EnableTableHandler extends EventHandler {
         this.assignmentManager.getBalancer().retainAssignment(regionsToAssign, onlineServers);
     LOG.info("Bulk assigning " + regionsCount + " region(s) across " + bulkPlan.size()
       + " server(s), retainAssignment=true");
-    
+
     BulkAssigner ba = new GeneralBulkAssigner(this.server, bulkPlan, this.assignmentManager, true);
     try {
       if (ba.bulkAssign()) {

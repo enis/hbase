@@ -748,11 +748,7 @@ public class RegionStates {
       new HashMap<TableName, Map<ServerName,List<HRegionInfo>>>();
     synchronized (this) {
       if (!server.getConfiguration().getBoolean("hbase.master.loadbalance.bytable", false)) {
-        Map<ServerName, List<HRegionInfo>> svrToRegions =
-          new HashMap<ServerName, List<HRegionInfo>>(serverHoldings.size());
-        for (Map.Entry<ServerName, Set<HRegionInfo>> e: serverHoldings.entrySet()) {
-          svrToRegions.put(e.getKey(), new ArrayList<HRegionInfo>(e.getValue()));
-        }
+        Map<ServerName, List<HRegionInfo>> svrToRegions = getRegionAssignmentsByServer();
         result.put(TableName.valueOf("ensemble"), svrToRegions);
       } else {
         for (Map.Entry<ServerName, Set<HRegionInfo>> e: serverHoldings.entrySet()) {
@@ -786,6 +782,15 @@ public class RegionStates {
       }
     }
     return result;
+  }
+
+  protected synchronized Map<ServerName, List<HRegionInfo>> getRegionAssignmentsByServer() {
+    Map<ServerName, List<HRegionInfo>> regionsByServer =
+        new HashMap<ServerName, List<HRegionInfo>>(serverHoldings.size());
+    for (Map.Entry<ServerName, Set<HRegionInfo>> e: serverHoldings.entrySet()) {
+      regionsByServer.put(e.getKey(), new ArrayList<HRegionInfo>(e.getValue()));
+    }
+    return regionsByServer;
   }
 
   protected synchronized RegionState getRegionState(final HRegionInfo hri) {
