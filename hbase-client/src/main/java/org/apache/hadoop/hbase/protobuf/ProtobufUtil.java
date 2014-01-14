@@ -1256,12 +1256,12 @@ public final class ProtobufUtil {
    */
   public static Result toResult(final ClientProtos.Result proto) {
     if (proto.hasExists()) {
-      return proto.getExists() ? EMPTY_RESULT_EXISTS_TRUE : EMPTY_RESULT_EXISTS_FALSE;
+      return proto.getExists() ? Result.create(null, true) : Result.create(null, false);
     }
 
     List<CellProtos.Cell> values = proto.getCellList();
     if (values.isEmpty()){
-      return EMPTY_RESULT;
+      return Result.create(EMPTY_CELL_ARRAY);
     }
 
     List<Cell> cells = new ArrayList<Cell>(values.size());
