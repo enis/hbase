@@ -21,9 +21,10 @@ package org.apache.hadoop.hbase.chaos.factories;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.hadoop.hbase.IntegrationTestingUtility;
 import org.apache.hadoop.hbase.chaos.monkies.ChaosMonkey;
+
+import com.google.common.collect.ImmutableMap;
 
 /**
  * Base class of the factory that will create a ChaosMonkey.
@@ -56,11 +57,13 @@ public abstract class MonkeyFactory {
   // TODO: the name has become a misnomer since the default (not-slow) monkey has been removed
   public static final String SLOW_DETERMINISTIC = "slowDeterministic";
   public static final String UNBALANCE = "unbalance";
+  public static final String DESTRUCTIVE = "destructive";
 
   public static Map<String, MonkeyFactory> FACTORIES = ImmutableMap.<String,MonkeyFactory>builder()
     .put(CALM, new CalmMonkeyFactory())
     .put(SLOW_DETERMINISTIC, new SlowDeterministicMonkeyFactory())
     .put(UNBALANCE, new UnbalanceMonkeyFactory())
+    .put(DESTRUCTIVE, new DestructiveMonkeyFactory())
     .build();
 
   public static MonkeyFactory getFactory(String factoryName) {

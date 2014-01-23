@@ -107,6 +107,10 @@ public abstract class IntegrationTestBase extends AbstractHBaseTool {
     monkey = fact.setUtil(util)
                  .setTableName(getTablename())
                  .setColumnFamilies(getColumnFamilies()).build();
+    startMonkey();
+  }
+
+  protected void startMonkey() throws Exception {
     monkey.start();
   }
 
