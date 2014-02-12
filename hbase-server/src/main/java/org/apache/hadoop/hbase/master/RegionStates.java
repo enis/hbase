@@ -38,6 +38,7 @@ import org.apache.hadoop.hbase.ServerLoad;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.MetaReader;
+import org.apache.hadoop.hbase.client.RegionReplicaUtil;
 import org.apache.hadoop.hbase.master.RegionState.State;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -73,6 +74,12 @@ public class RegionStates {
    * Contains the set of regions currently assigned to a given server.
    */
   private final Map<ServerName, Set<HRegionInfo>> serverHoldings;
+
+  /**
+   * Maintains for each region (includes default and all replicas) the set of servers
+   * it is currently hosted in.
+   */
+  private final Map<HRegionInfo, Set<ServerName>> regionReplicaToServer;
 
   /**
    * Region to server assignment map.
@@ -111,6 +118,7 @@ public class RegionStates {
 
   private final ServerManager serverManager;
   private final Server server;
+  private final RackManager rackManager;
 
   // The maximum time to keep a log split info in region states map
   static final String LOG_SPLIT_TIME = "hbase.master.maximum.logsplit.keeptime";
@@ -120,12 +128,14 @@ public class RegionStates {
     regionStates = new HashMap<String, RegionState>();
     regionsInTransition = new HashMap<String, RegionState>();
     serverHoldings = new HashMap<ServerName, Set<HRegionInfo>>();
+    regionReplicaToServer = new HashMap<HRegionInfo, Set<ServerName>>();
     regionAssignments = new TreeMap<HRegionInfo, ServerName>();
     lastAssignments = new HashMap<String, ServerName>();
     processedServers = new HashMap<ServerName, Long>();
     deadServers = new HashMap<String, Long>();
     this.serverManager = serverManager;
     this.server = master;
+    this.rackManager = new RackManager(master.getConfiguration());
   }
 
   /**
@@ -134,6 +144,54 @@ public class RegionStates {
   @SuppressWarnings("unchecked")
   public synchronized Map<HRegionInfo, ServerName> getRegionAssignments() {
     return (Map<HRegionInfo, ServerName>)regionAssignments.clone();
+  }
+
+  /**
+   * Return the replicas for the regions grouped by ServerName and corresponding Racks
+   * @param regions
+   * @return a pair containing the groupings as Maps
+   */
+  synchronized Pair<Map<ServerName, Set<HRegionInfo>>, Map<String, Set<HRegionInfo>>>
+  getRegionAssignments(List<HRegionInfo> regions) {
+    Map<ServerName, Set<HRegionInfo>> replicaAssignments =
+        new TreeMap<ServerName, Set<HRegionInfo>>();
+    Map<String, Set<HRegionInfo>> rackAssignments =
+        new TreeMap<String, Set<HRegionInfo>>();
+    List <ServerName> servers = new ArrayList<ServerName>();
+
+    //what is being computed in the method below can also be maintained inline
+    //(in addToServerHoldings/removeFromServerHoldings) and on request, cloned and
+    //returned (just like getRegionAssignments() does), but in practice this
+    //method will be called with only a few regions and shouldn't be a big deal. Clone
+    //might be more expensive.
+    for (HRegionInfo region : regions) {
+      HRegionInfo defaultReplica = RegionReplicaUtil.getRegionInfoForDefaultReplica(region);
+      Set<ServerName> serversHostingRegionReplicas = regionReplicaToServer.get(defaultReplica);
+      if (serversHostingRegionReplicas != null) {
+        for (ServerName server : serversHostingRegionReplicas) {
+          Set<HRegionInfo> regionsOnServer = replicaAssignments.get(server);
+          if (regionsOnServer == null) {
+            regionsOnServer = new HashSet<HRegionInfo>(2);
+            replicaAssignments.put(server, regionsOnServer);
+          }
+          regionsOnServer.add(defaultReplica);
+          servers.add(server);
+        }
+      }
+    }
+
+    List<String> racks = rackManager.getRack(servers);
+    for (int i = 0; i < servers.size(); i++) {
+      Set<HRegionInfo> r = replicaAssignments.get(servers.get(i));
+      Set<HRegionInfo> regionsOnRack = rackAssignments.get(racks.get(i));
+      if (regionsOnRack == null) {
+        regionsOnRack = new HashSet<HRegionInfo>();
+        rackAssignments.put(racks.get(i), regionsOnRack);
+      }
+      regionsOnRack.addAll(r);
+    }
+    return new Pair<Map<ServerName, Set<HRegionInfo>>,
+        Map<String, Set<HRegionInfo>>>(replicaAssignments, rackAssignments);
   }
 
   public synchronized ServerName getRegionServerOfRegion(HRegionInfo hri) {
@@ -375,20 +433,43 @@ public class RegionStates {
     ServerName oldServerName = regionAssignments.put(hri, serverName);
     if (!serverName.equals(oldServerName)) {
       LOG.info("Onlined " + hri.getShortNameToLog() + " on " + serverName);
-      Set<HRegionInfo> regions = serverHoldings.get(serverName);
-      if (regions == null) {
-        regions = new HashSet<HRegionInfo>();
-        serverHoldings.put(serverName, regions);
-      }
-      regions.add(hri);
+      addToServerHoldings(serverName, hri);
       if (oldServerName != null) {
         LOG.info("Offlined " + hri.getShortNameToLog() + " from " + oldServerName);
-        Set<HRegionInfo> oldRegions = serverHoldings.get(oldServerName);
-        oldRegions.remove(hri);
-        if (oldRegions.isEmpty()) {
-          serverHoldings.remove(oldServerName);
-        }
+        removeFromServerHoldings(oldServerName, hri);
       }
+    }
+  }
+
+  private void addToServerHoldings(ServerName serverName, HRegionInfo hri) {
+    Set<HRegionInfo> regions = serverHoldings.get(serverName);
+    if (regions == null) {
+      regions = new HashSet<HRegionInfo>();
+      serverHoldings.put(serverName, regions);
+    }
+    regions.add(hri);
+
+    HRegionInfo defaultReplica = RegionReplicaUtil.getRegionInfoForDefaultReplica(hri);
+    Set<ServerName> serversHostingReplicaOfRegion =
+        regionReplicaToServer.get(defaultReplica);
+    if (serversHostingReplicaOfRegion == null) {
+      serversHostingReplicaOfRegion = new HashSet<ServerName>();
+      regionReplicaToServer.put(defaultReplica, serversHostingReplicaOfRegion);
+    }
+    serversHostingReplicaOfRegion.add(serverName);
+  }
+
+  private void removeFromServerHoldings(ServerName serverName, HRegionInfo hri) {
+    Set<HRegionInfo> oldRegions = serverHoldings.get(serverName);
+    oldRegions.remove(hri);
+    if (oldRegions.isEmpty()) {
+      serverHoldings.remove(serverName);
+    }
+    HRegionInfo defaultReplica = RegionReplicaUtil.getRegionInfoForDefaultReplica(hri);
+    Set<ServerName> servers = regionReplicaToServer.get(defaultReplica);
+    servers.remove(serverName);
+    if (servers.isEmpty()) {
+      regionReplicaToServer.remove(defaultReplica);
     }
   }
 
@@ -459,11 +540,7 @@ public class RegionStates {
     ServerName oldServerName = regionAssignments.remove(hri);
     if (oldServerName != null) {
       LOG.info("Offlined " + hri.getShortNameToLog() + " from " + oldServerName);
-      Set<HRegionInfo> oldRegions = serverHoldings.get(oldServerName);
-      oldRegions.remove(hri);
-      if (oldRegions.isEmpty()) {
-        serverHoldings.remove(oldServerName);
-      }
+      removeFromServerHoldings(oldServerName, hri);
     }
   }
 

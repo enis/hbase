@@ -33,11 +33,14 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HRegionLocation;
+import org.apache.hadoop.hbase.RegionLocations;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.catalog.CatalogTracker;
 import org.apache.hadoop.hbase.catalog.MetaReader;
 import org.apache.hadoop.hbase.catalog.MetaReader.Visitor;
+import org.apache.hadoop.hbase.client.RegionReplicaUtil;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.master.balancer.FavoredNodeAssignmentHelper;
 import org.apache.hadoop.hbase.master.balancer.FavoredNodesPlan;
@@ -100,20 +103,31 @@ public class SnapshotOfRegionAssignmentFromMeta {
       public boolean visit(Result result) throws IOException {
         try {
           if (result ==  null || result.isEmpty()) return true;
-          Pair<HRegionInfo, ServerName> regionAndServer =
-              HRegionInfo.getHRegionInfoAndServerName(result);
-          HRegionInfo hri = regionAndServer.getFirst();
-          if (hri  == null) return true;
+          HRegionInfo hri = HRegionInfo.getHRegionInfo(result);
+          if (hri == null) return true;
           if (hri.getTable() == null) return true;
           if (disabledTables.contains(hri.getTable())) {
             return true;
           }
           // Are we to include split parents in the list?
           if (excludeOfflinedSplitParents && hri.isSplit()) return true;
-          // Add the current assignment to the snapshot
-          addAssignment(hri, regionAndServer.getSecond());
-          addRegion(hri);
-          
+          RegionLocations locations = MetaReader.getRegionLocations(result);
+          HRegionLocation[] hrl = locations.getRegionLocations();
+
+          // Add the current assignment to the snapshot for all replicas
+          if (hrl != null) {
+            for (int i = 0; i < hrl.length; i++) {
+              hri = RegionReplicaUtil.getRegionInfoForReplica(hri, i);
+              addAssignment(hri, hrl[i].getServerName());
+              addRegion(hri);
+            }
+          } else {
+            // add a 'null' assignment. Required for map.keyset operation on the 
+            // return value from getRegionToRegionServerMap. The keyset should
+            // still contain the hri although the region is presently not assigned
+            addAssignment(hri, null);
+            addRegion(hri);
+          }
           // the code below is to handle favored nodes
           byte[] favoredNodes = result.getValue(HConstants.CATALOG_FAMILY,
               FavoredNodeAssignmentHelper.FAVOREDNODES_QUALIFIER);
