@@ -3556,8 +3556,7 @@ public class AssignmentManager extends ZooKeeperListener {
     return this.balancer;
   }
 
-  public Pair<Map<ServerName, Set<HRegionInfo>>, Map<String, Set<HRegionInfo>>>
-  getSnapShotOfAssignment(List<HRegionInfo> infos) {
-    return getRegionStates().getRegionAssignments(infos);
+  public Map<ServerName, List<HRegionInfo>> getRegionAssignmentsByServer() {
+    return getRegionStates().getRegionAssignmentsByServer();
   }
 }

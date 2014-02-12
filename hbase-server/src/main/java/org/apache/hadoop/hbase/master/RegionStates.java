@@ -806,6 +806,19 @@ public class RegionStates {
     return result;
   }
 
+  /**
+   * Returns a clone of region assignments per server
+   * @return a Map of ServerName to a List of HRegionInfo's
+   */
+  protected synchronized Map<ServerName, List<HRegionInfo>> getRegionAssignmentsByServer() {
+    Map<ServerName, List<HRegionInfo>> regionsByServer =
+        new HashMap<ServerName, List<HRegionInfo>>(serverHoldings.size());
+    for (Map.Entry<ServerName, Set<HRegionInfo>> e: serverHoldings.entrySet()) {
+      regionsByServer.put(e.getKey(), new ArrayList<HRegionInfo>(e.getValue()));
+    }
+    return regionsByServer;
+  }
+
   protected synchronized RegionState getRegionState(final HRegionInfo hri) {
     return regionStates.get(hri.getEncodedName());
   }
