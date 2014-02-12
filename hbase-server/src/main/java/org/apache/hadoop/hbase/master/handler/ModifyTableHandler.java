@@ -19,16 +19,21 @@
 package org.apache.hadoop.hbase.master.handler;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.Server;
+import org.apache.hadoop.hbase.catalog.MetaReader;
+import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.executor.EventType;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.MasterCoprocessorHost;
@@ -68,9 +73,38 @@ public class ModifyTableHandler extends TableEventHandler {
     HTableDescriptor oldHtd = getTableDescriptor();
     this.masterServices.getTableDescriptors().add(this.htd);
     deleteFamilyFromFS(hris, oldHtd.getFamiliesKeys());
+    // update meta if needed (TODO: make this work when table is online)
+    removeReplicaColumnsIfNeeded(this.htd.getRegionReplication(), oldHtd.getRegionReplication(),
+        htd.getTableName());
     if (cpHost != null) {
       cpHost.postModifyTableHandler(this.tableName, this.htd);
     }
+  }
+
+  private void removeReplicaColumnsIfNeeded(int newReplicaCount, int oldReplicaCount,
+      TableName table) throws IOException {
+    if (newReplicaCount >= oldReplicaCount) return;
+    Set<byte[]> tableRows = new HashSet<byte[]>();
+    List<HRegionInfo> currentRegions =
+        MetaReader.getTableRegions(masterServices.getCatalogTracker(), table);
+    for (HRegionInfo hri : currentRegions) {
+      tableRows.add(hri.getRegionName());
+    }
+    HTable metaTable = new HTable(TableName.META_TABLE_NAME,
+        masterServices.getCatalogTracker().getConnection());
+    for (byte[] row : tableRows) {
+      Delete deleteReplicaLocations = new Delete(row);
+      for (int i = newReplicaCount; i < oldReplicaCount; i++) {
+        deleteReplicaLocations.deleteColumns(HConstants.CATALOG_FAMILY,
+            MetaReader.getServerColumn(i));
+        deleteReplicaLocations.deleteColumns(HConstants.CATALOG_FAMILY,
+            MetaReader.getSeqNumColumn(i));
+        deleteReplicaLocations.deleteColumns(HConstants.CATALOG_FAMILY,
+            MetaReader.getStartCodeColumn(i));
+      }
+      metaTable.delete(deleteReplicaLocations);
+    }
+    metaTable.close();
   }
 
   /**
