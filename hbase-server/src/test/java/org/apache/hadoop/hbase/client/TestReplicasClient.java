@@ -447,7 +447,7 @@ public class TestReplicasClient {
       g.setConsistency(Consistency.TIMELINE);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
-      Assert.assertTrue(r.getExists()); // <<<<<<<<<<<<<<<<<<<used to work
+      Assert.assertTrue(r.getExists());
       SlowMeCopro.cdl.get().countDown();
       LOG.info("exists stale after flush done");
 
