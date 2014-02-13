@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.MasterNotRunningException;
+import org.apache.hadoop.hbase.RegionLocations;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.ZooKeeperConnectionException;
@@ -142,7 +143,17 @@ interface ClusterConnection extends HConnection {
       final boolean useCache,
       final boolean offlined) throws IOException;
 
-
+  /**
+   *
+   * @param tableName table to get regions of
+   * @param row the row
+   * @param useCache Should we use the cache to retrieve the region information.
+   * @param retry do we retry
+   * @return region locations for this row.
+   * @throws IOException
+   */
+  RegionLocations locateRegion(TableName tableName,
+                               byte[] row, boolean useCache, boolean retry) throws IOException;
   /**
    * Returns a {@link MasterKeepAliveConnection} to the active master
    */
@@ -212,4 +223,5 @@ interface ClusterConnection extends HConnection {
    * @return Default AsyncProcess associated with this connection.
    */
   AsyncProcess getAsyncProcess();
+
 }
