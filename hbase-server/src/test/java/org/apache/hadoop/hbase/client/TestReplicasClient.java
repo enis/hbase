@@ -436,7 +436,7 @@ public class TestReplicasClient {
       g.setConsistency(Consistency.TIMELINE);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
-//      Assert.assertFalse(r.isEmpty());                  <<<<<<<<<<<<<<<<<<< used to work
+      Assert.assertFalse(r.isEmpty());
       SlowMeCopro.cdl.get().countDown();
       LOG.info("stale done");
 
@@ -447,7 +447,7 @@ public class TestReplicasClient {
       g.setConsistency(Consistency.TIMELINE);
       r = table.get(g);
       Assert.assertTrue(r.isStale());
-//      Assert.assertTrue(r.getExists());                    <<<<<<<<<<<<<<<<<<< used to work
+      Assert.assertTrue(r.getExists()); // <<<<<<<<<<<<<<<<<<<used to work
       SlowMeCopro.cdl.get().countDown();
       LOG.info("exists stale after flush done");
 

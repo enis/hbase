@@ -4654,7 +4654,8 @@ public class HRegion implements HeapSize { // , Writable{
       }
     }
     List<Cell> results = get(get, true);
-    return Result.create(results, get.isCheckExistenceOnly() ? !results.isEmpty() : null);
+    boolean stale = !ServerRegionReplicaUtil.isDefaultReplica(this.getRegionInfo());
+    return Result.create(results, get.isCheckExistenceOnly() ? !results.isEmpty() : null, stale);
   }
 
   /*

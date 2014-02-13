@@ -211,6 +211,7 @@ import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.InfoServer;
 import org.apache.hadoop.hbase.util.JvmPauseMonitor;
 import org.apache.hadoop.hbase.util.Pair;
+import org.apache.hadoop.hbase.util.ServerRegionReplicaUtil;
 import org.apache.hadoop.hbase.util.Sleeper;
 import org.apache.hadoop.hbase.util.Strings;
 import org.apache.hadoop.hbase.util.Threads;
@@ -2863,7 +2864,8 @@ public class HRegionServer implements ClientProtos.ClientService.BlockingInterfa
         }
       }
       if (existence != null){
-        ClientProtos.Result pbr = ProtobufUtil.toResult(existence);
+        boolean stale = !ServerRegionReplicaUtil.isDefaultReplica(region.getRegionInfo());
+        ClientProtos.Result pbr = ProtobufUtil.toResult(existence, stale);
         builder.setResult(pbr);
       } else  if (r != null) {
         ClientProtos.Result pbr = ProtobufUtil.toResult(r);
