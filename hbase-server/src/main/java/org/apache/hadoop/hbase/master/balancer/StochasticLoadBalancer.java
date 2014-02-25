@@ -142,7 +142,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       new RandomCandidateGenerator(),
       new LoadCandidateGenerator(),
       localityCandidateGenerator,
-      new RegionReplicaHostCandidateGenerator(),
+      new RegionReplicaCandidateGenerator(),
     };
 
     regionLoadFunctions = new CostFromRegionLoadFunction[] {
@@ -341,7 +341,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
   protected void updateCostsWithAction(Cluster cluster, Action action) {
     for (CostFunction c : costFunctions) {
-      c.postAction(cluster, action);
+      c.postAction(action);
     }
   }
 
@@ -362,7 +362,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
         continue;
       }
 
-      total += c.getMultiplier() * c.cost(cluster);
+      total += c.getMultiplier() * c.cost();
 
       if (total > previousCost) {
         return total;
@@ -405,14 +405,6 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       return RANDOM.nextInt(cluster.numServers);
     }
 
-    protected int pickRandomHost(Cluster cluster) {
-      if (cluster.numHosts < 1) {
-        return -1;
-      }
-
-      return RANDOM.nextInt(cluster.numHosts);
-    }
-
     protected int pickOtherRandomServer(Cluster cluster, int serverIndex) {
       if (cluster.numServers < 2) {
         return -1;
@@ -421,18 +413,6 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
         int otherServerIndex = pickRandomServer(cluster);
         if (otherServerIndex != serverIndex) {
           return otherServerIndex;
-        }
-      }
-    }
-
-    protected int pickOtherRandomHost(Cluster cluster, int hostIndex) {
-      if (cluster.numHosts < 2) {
-        return -1;
-      }
-      while (true) {
-        int otherHostIndex = pickRandomHost(cluster);
-        if (otherHostIndex != hostIndex) {
-          return otherHostIndex;
         }
       }
     }
@@ -585,85 +565,68 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
    * Generates candidates which moves the replicas out of the region server for
    * co-hosted region replicas
    */
-  public static class RegionReplicaHostCandidateGenerator extends CandidateGenerator {
+  public static class RegionReplicaCandidateGenerator extends CandidateGenerator {
 
     RandomCandidateGenerator randomGenerator = new RandomCandidateGenerator();
 
     @Override
     Cluster.Action generate(Cluster cluster) {
 
-      int hostIndex = pickRandomHost(cluster);
+      int serverIndex = pickRandomServer(cluster);
 
-      if (cluster.numHosts <= 1 || hostIndex == -1) {
+      if (cluster.numServers <= 1 || serverIndex == -1) {
         return Cluster.NullAction;
       }
 
-      // find the regions in the host with its replicas in the same host
+      // randomly select one primaryIndex out of all region replicas in the same server
+      // we don't know how many region replicas are co-hosted, we will randomly select one
+      // using reservoir sampling (http://gregable.com/2007/10/reservoir-sampling.html)
       int currentPrimary = -1;
       int currentPrimaryIndex = -1;
-      int numRegionsWithReplica = 0;
-      for (int j = 0; j <= cluster.regionsByPrimaryPerHost[hostIndex].length; j++) {
-        int primary = j < cluster.regionsByPrimaryPerHost[hostIndex].length ? cluster.regionsByPrimaryPerHost[hostIndex][j] : -1;
-        if (primary != currentPrimary) {
+      int primaryIndex = -1;
+      double currentLargestRandom = -1;
+      // regionsByPrimaryPerServer is a sorted array. Since it contains the primary region
+      // ids for the regions hosted in server, a consecutive repetition means that replicas
+      // are co-hosted
+      for (int j = 0; j <= cluster.primariesOfRegionsPerServer[serverIndex].length; j++) {
+        int primary = j < cluster.primariesOfRegionsPerServer[serverIndex].length
+            ? cluster.primariesOfRegionsPerServer[serverIndex][j] : -1;
+        if (primary != currentPrimary) { // check for whether we see a new primary
           int numReplicas = j - currentPrimaryIndex;
-          if (numReplicas > 1) {
-            numRegionsWithReplica++;
+          if (numReplicas > 1) { // means consecutive primaries, indicating co-location
+            // decide to select this primary region id or not
+            double currentRandom = RANDOM.nextDouble();
+            if (currentRandom > currentLargestRandom) {
+              primaryIndex = currentPrimary; // select this primary
+              currentLargestRandom = currentRandom;
+            }
           }
-
           currentPrimary = primary;
           currentPrimaryIndex = j;
         }
       }
 
-      // randomly select one primaryIndex out of all region replicas in the same host
-      currentPrimary = -1;
-      currentPrimaryIndex = -1;
-      int primaryIndex = -1;
-      if (numRegionsWithReplica > 0) {
-        int randomIndex = RANDOM.nextInt(numRegionsWithReplica);
-        int index = 0;
-        for (int j = 0; j <= cluster.regionsByPrimaryPerHost[hostIndex].length; j++) {
-          int primary = j < cluster.regionsByPrimaryPerHost[hostIndex].length ? cluster.regionsByPrimaryPerHost[hostIndex][j] : -1;
-          if (primary != currentPrimary) {
-            int numReplicas = j - currentPrimaryIndex;
-            if (numReplicas > 1) {
-              if (index++ == randomIndex) {
-                primaryIndex = currentPrimary;
-                break;
-              }
-            }
-
-            currentPrimary = primary;
-            currentPrimaryIndex = j;
-          }
-        }
-      }
-
+      // if there are no pairs of region replicas co-hosted, default to random generator
       if (primaryIndex == -1) {
         // default to randompicker
         return randomGenerator.generate(cluster);
       }
 
+      // we have found the primary id for the region to move. Now find the actual regionIndex
+      // with the given primary, prefer to move the secondary region.
       int regionIndex = -1;
-      int serverIndex = -1;
-      // move the region replica out of the host
-      for (int j = 0; j < cluster.serversPerHost[hostIndex].length; j++) {
-        for (int k = 0; k < cluster.regionsPerServer[cluster.serversPerHost[hostIndex][j]].length; k++) {
-          int region = cluster.regionsPerServer[cluster.serversPerHost[hostIndex][j]][k];
-          if (primaryIndex == cluster.regionIndexToPrimaryIndex[region]) {
-            // always move the secondary, not the primary
-            if (!RegionReplicaUtil.isDefaultReplica(cluster.regions[region])) {
-              regionIndex = region;
-              serverIndex = cluster.serversPerHost[hostIndex][j];
-              break;
-            }
+      for (int k = 0; k < cluster.regionsPerServer[serverIndex].length; k++) {
+        int region = cluster.regionsPerServer[serverIndex][k];
+        if (primaryIndex == cluster.regionIndexToPrimaryIndex[region]) {
+          // always move the secondary, not the primary
+          if (!RegionReplicaUtil.isDefaultReplica(cluster.regions[region])) {
+            regionIndex = region;
+            break;
           }
         }
       }
 
-      int toHostIndex = pickOtherRandomHost(cluster, hostIndex);
-      int toServerIndex = cluster.serversPerHost[toHostIndex]
-          [RANDOM.nextInt(cluster.serversPerHost[toHostIndex].length)];
+      int toServerIndex = pickOtherRandomServer(cluster, serverIndex);
 
       int toRegionIndex = pickRandomRegion(cluster, toServerIndex, 0.9f);
 
@@ -678,6 +641,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
     private float multiplier = 0;
     private Configuration conf;
+    protected Cluster cluster;
 
     CostFunction(Configuration c) {
       this.conf = c;
@@ -694,37 +658,39 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     /** Called once per LB invocation to give the cost function
      * to initialize it's state, and perform any costly calculation.
      */
-    void init(Cluster cluster) { }
+    void init(Cluster cluster) {
+      this.cluster = cluster;
+    }
 
     /** Called once per cluster Action to give the cost function
      * an opportunity to update it's state. postAction() is always
      * called at least once before cost() is called with the cluster
      * that this action is performed on. */
-    void postAction(Cluster cluster, Action action) {
+    void postAction(Action action) {
       switch (action.type) {
       case NULL: break;
       case ASSIGN_REGION:
         AssignRegionAction ar = (AssignRegionAction) action;
-        regionMoved(cluster, ar.region, -1, ar.server);
+        regionMoved(ar.region, -1, ar.server);
         break;
       case MOVE_REGION:
         MoveRegionAction mra = (MoveRegionAction) action;
-        regionMoved(cluster, mra.region, mra.fromServer, mra.toServer);
+        regionMoved(mra.region, mra.fromServer, mra.toServer);
         break;
       case SWAP_REGIONS:
         SwapRegionsAction a = (SwapRegionsAction) action;
-        regionMoved(cluster, a.fromRegion, a.fromServer, a.toServer);
-        regionMoved(cluster, a.toRegion, a.toServer, a.fromServer);
+        regionMoved(a.fromRegion, a.fromServer, a.toServer);
+        regionMoved(a.toRegion, a.toServer, a.fromServer);
         break;
       default:
         throw new RuntimeException("Uknown action:" + action.type);
       }
     }
 
-    protected void regionMoved(Cluster cluster, int region, int oldServer, int newServer) {
+    protected void regionMoved(int region, int oldServer, int newServer) {
     }
 
-    abstract double cost(Cluster cluster);
+    abstract double cost();
 
     /**
      * Function to compute a scaled cost using {@link DescriptiveStatistics}. It
@@ -804,7 +770,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     }
 
     @Override
-    double cost(Cluster cluster) {
+    double cost() {
       // Try and size the max number of Moves, but always be prepared to move some.
       int maxMoves = Math.max((int) (cluster.numRegions * maxMovesPercent),
           DEFAULT_MAX_MOVES);
@@ -845,7 +811,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     }
 
     @Override
-    double cost(Cluster cluster) {
+    double cost() {
       if (stats == null || stats.length != cluster.numServers) {
         stats = new double[cluster.numServers];
       }
@@ -873,7 +839,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     }
 
     @Override
-    double cost(Cluster cluster) {
+    double cost() {
       double max = cluster.numRegions;
       double min = cluster.numRegions / cluster.numServers;
       double value = 0;
@@ -909,7 +875,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     }
 
     @Override
-    double cost(Cluster cluster) {
+    double cost() {
       double max = 0;
       double cost = 0;
 
@@ -970,7 +936,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
 
     @Override
-    double cost(Cluster cluster) {
+    double cost() {
       if (clusterStatus == null || loads == null) {
         return 0;
       }
@@ -1076,38 +1042,49 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     private static final float DEFAULT_REGION_REPLICA_HOST_COST_KEY = 100000;
 
     long maxCost = 0;
-    long[] costsPerGroup; // group is either host or rack
+    long[] costsPerGroup; // group is either server, host or rack
+    int[][] primariesOfRegionsPerGroup;
 
     public RegionReplicaHostCostFunction(Configuration conf) {
       super(conf);
-      this.setMultiplier(conf.getFloat(REGION_REPLICA_HOST_COST_KEY, DEFAULT_REGION_REPLICA_HOST_COST_KEY));
+      this.setMultiplier(conf.getFloat(REGION_REPLICA_HOST_COST_KEY,
+        DEFAULT_REGION_REPLICA_HOST_COST_KEY));
     }
 
     @Override
     void init(Cluster cluster) {
+      super.init(cluster);
       // max cost is the case where every region replica is hosted together regardless of host
       maxCost = cluster.numHosts > 1 ? getMaxCost(cluster) : 0;
       costsPerGroup = new long[cluster.numHosts];
-      for (int i = 0 ; i < cluster.regionsByPrimaryPerHost.length; i++) {
-        costsPerGroup[i] = costPerGroup(cluster.regionsByPrimaryPerHost[i]);
+      primariesOfRegionsPerGroup = cluster.multiServersPerHost // either server based or host based
+          ? cluster.primariesOfRegionsPerHost
+          : cluster.primariesOfRegionsPerServer;
+      for (int i = 0 ; i < primariesOfRegionsPerGroup.length; i++) {
+        costsPerGroup[i] = costPerGroup(primariesOfRegionsPerGroup[i]);
       }
     }
 
     long getMaxCost(Cluster cluster) {
-      int[] regionsByPrimary = new int[cluster.numRegions];
+      if (!cluster.hasRegionReplicas) {
+        return 0; // short circuit
+      }
+      // max cost is the case where every region replica is hosted together regardless of host
+      int[] primariesOfRegions = new int[cluster.numRegions];
       for (int i = 0; i < cluster.regions.length; i++) {
+        // assume all regions are hosted by only one server
         int primaryIndex = cluster.regionIndexToPrimaryIndex[i];
-        regionsByPrimary[i] = primaryIndex;
+        primariesOfRegions[i] = primaryIndex;
       }
 
-      Arrays.sort(regionsByPrimary);
+      Arrays.sort(primariesOfRegions);
 
       // compute numReplicas from the sorted array
-      return costPerGroup(regionsByPrimary);
+      return costPerGroup(primariesOfRegions);
     }
 
     @Override
-    double cost(Cluster cluster) {
+    double cost() {
       if (maxCost <= 0) {
         return 0;
       }
@@ -1119,16 +1096,26 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
       return scale(0, maxCost, totalCost);
     }
 
-    protected long costPerGroup(int[] regionsByPrimary) {
+    /**
+     * For each primary region, it computes the total number of replicas in the array (numReplicas)
+     * and returns a sum of numReplicas-1 squared. For example, if the server hosts
+     * regions a, b, c, d, e, f where a and b are same replicas, and c,d,e are same replicas, it
+     * returns (2-1) * (2-1) + (3-1) * (3-1) + (1-1).
+     * @param primariesOfRegions a sorted array of primary regions ids for the regions hosted
+     * @return a sum of numReplicas-1 squared for each primary region in the group.
+     */
+    protected long costPerGroup(int[] primariesOfRegions) {
       long cost = 0;
       int currentPrimary = -1;
       int currentPrimaryIndex = -1;
-      for (int j = 0 ; j <= regionsByPrimary.length; j++) {
-        int primary = j < regionsByPrimary.length ? regionsByPrimary[j] : -1;
-        if (primary != currentPrimary) {
+      // primariesOfRegions is a sorted array of primary ids of regions. Replicas of regions
+      // sharing the same primary will have consecutive numbers in the array.
+      for (int j = 0 ; j <= primariesOfRegions.length; j++) {
+        int primary = j < primariesOfRegions.length ? primariesOfRegions[j] : -1;
+        if (primary != currentPrimary) { // we see a new primary
           int numReplicas = j - currentPrimaryIndex;
           // square the cost
-          if (numReplicas > 1) {
+          if (numReplicas > 1) { // means consecutive primaries, indicating co-location
             cost += (numReplicas - 1) * (numReplicas - 1);
           }
           currentPrimary = primary;
@@ -1140,12 +1127,20 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
     }
 
     @Override
-    protected void regionMoved(Cluster cluster, int region, int oldServer, int newServer) {
-      int oldHost = cluster.serverIndexToHostIndex[oldServer];
-      int newHost = cluster.serverIndexToHostIndex[newServer];
-      if (newHost != oldHost) {
-        costsPerGroup[oldHost] = costPerGroup(cluster.regionsByPrimaryPerHost[oldHost]);
-        costsPerGroup[newHost] = costPerGroup(cluster.regionsByPrimaryPerHost[newHost]);
+    protected void regionMoved(int region, int oldServer, int newServer) {
+      if (maxCost <= 0) {
+        return; // no need to compute
+      }
+      if (cluster.multiServersPerHost) {
+        int oldHost = cluster.serverIndexToHostIndex[oldServer];
+        int newHost = cluster.serverIndexToHostIndex[newServer];
+        if (newHost != oldHost) {
+          costsPerGroup[oldHost] = costPerGroup(cluster.primariesOfRegionsPerHost[oldHost]);
+          costsPerGroup[newHost] = costPerGroup(cluster.primariesOfRegionsPerHost[newHost]);
+        }
+      } else {
+        costsPerGroup[oldServer] = costPerGroup(cluster.primariesOfRegionsPerServer[oldServer]);
+        costsPerGroup[newServer] = costPerGroup(cluster.primariesOfRegionsPerServer[newServer]);
       }
     }
   }
@@ -1167,21 +1162,29 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
 
     @Override
     void init(Cluster cluster) {
+      this.cluster = cluster;
+      if (cluster.numRacks <= 1) {
+        maxCost = 0;
+        return; // disabled for 1 rack
+      }
       // max cost is the case where every region replica is hosted together regardless of rack
-      maxCost = cluster.numRacks > 1 ? getMaxCost(cluster) : 0;
+      maxCost = getMaxCost(cluster);
       costsPerGroup = new long[cluster.numRacks];
-      for (int i = 0 ; i < cluster.regionsByPrimaryPerRack.length; i++) {
-        costsPerGroup[i] = costPerGroup(cluster.regionsByPrimaryPerRack[i]);
+      for (int i = 0 ; i < cluster.primariesOfRegionsPerRack.length; i++) {
+        costsPerGroup[i] = costPerGroup(cluster.primariesOfRegionsPerRack[i]);
       }
     }
 
     @Override
-    protected void regionMoved(Cluster cluster, int region, int oldServer, int newServer) {
+    protected void regionMoved(int region, int oldServer, int newServer) {
+      if (maxCost <= 0) {
+        return; // no need to compute
+      }
       int oldRack = cluster.serverIndexToRackIndex[oldServer];
       int newRack = cluster.serverIndexToRackIndex[newServer];
       if (newRack != oldRack) {
-        costsPerGroup[oldRack] = costPerGroup(cluster.regionsByPrimaryPerRack[oldRack]);
-        costsPerGroup[newRack] = costPerGroup(cluster.regionsByPrimaryPerRack[newRack]);
+        costsPerGroup[oldRack] = costPerGroup(cluster.primariesOfRegionsPerRack[oldRack]);
+        costsPerGroup[newRack] = costPerGroup(cluster.primariesOfRegionsPerRack[newRack]);
       }
     }
   }

@@ -31,6 +31,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -75,12 +76,18 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
   /**
    * An efficient array based implementation similar to ClusterState for keeping
    * the status of the cluster in terms of region assignment and distribution.
-   * To be used by LoadBalancers.
+   * LoadBalancers, such as StochasticLoadBalancer uses this Cluster object because of
+   * hundreds of thousands of hashmap manipulations are very costly, which is why this
+   * class uses mostly indexes and arrays.
+   *
+   * Cluster tracks a list of unassigned regions, region assignments, and the server
+   * topology in terms of server names, hostnames and racks.
    */
   protected static class Cluster {
     ServerName[] servers;
     String[] hosts; // ServerName uniquely identifies a region server. multiple RS can run on the same host
     String[] racks;
+    boolean multiServersPerHost = false; // whether or not any host has more than one server
 
     ArrayList<String> tables;
     HRegionInfo[] regions;
@@ -94,9 +101,9 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     int[][] regionsPerServer;            //serverIndex -> region list
     int[][] regionsPerHost;              //hostIndex -> list of regions
     int[][] regionsPerRack;              //rackIndex -> region list
-    int[][] regionsByPrimaryPerServer;   //serverIndex -> sorted list of regions by primary region index
-    int[][] regionsByPrimaryPerHost;     //hostIndex -> sorted list of regions by primary region index
-    int[][] regionsByPrimaryPerRack;     //rackIndex -> sorted list of regions by primary region index
+    int[][] primariesOfRegionsPerServer; //serverIndex -> sorted list of regions by primary region index
+    int[][] primariesOfRegionsPerHost;   //hostIndex -> sorted list of regions by primary region index
+    int[][] primariesOfRegionsPerRack;   //rackIndex -> sorted list of regions by primary region index
 
     int[][] serversPerHost;              //hostIndex -> list of server indexes
     int[][] serversPerRack;              //rackIndex -> list of server indexes
@@ -106,6 +113,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     int[][] numRegionsPerServerPerTable; //serverIndex -> tableIndex -> # regions
     int[]   numMaxRegionsPerTable;       //tableIndex -> max number of regions in a single RS
     int[]   regionIndexToPrimaryIndex;   //regionIndex -> regionIndex of the primary
+    boolean hasRegionReplicas = false;   //whether there is regions with replicas
 
     Integer[] serverIndicesSortedByRegionCount;
 
@@ -204,9 +212,9 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       regionsPerServer = new int[numServers][];
       regionsPerHost = new int[numHosts][];
       regionsPerRack = new int[numRacks][];
-      regionsByPrimaryPerServer = new int[numServers][];
-      regionsByPrimaryPerHost = new int[numHosts][];
-      regionsByPrimaryPerRack = new int[numRacks][];
+      primariesOfRegionsPerServer = new int[numServers][];
+      primariesOfRegionsPerHost = new int[numHosts][];
+      primariesOfRegionsPerRack = new int[numRacks][];
 
       int tableIndex = 0, regionIndex = 0, regionPerServerIndex = 0;
 
@@ -221,7 +229,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         }
 
         regionsPerServer[serverIndex] = new int[entry.getValue().size()];
-        regionsByPrimaryPerServer[serverIndex] = new int[entry.getValue().size()];
+        primariesOfRegionsPerServer[serverIndex] = new int[entry.getValue().size()];
         serverIndicesSortedByRegionCount[serverIndex] = serverIndex;
       }
 
@@ -261,6 +269,9 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         for (int j = 0; j < serversPerHost[i].length; j++) {
           serversPerHost[i][j] = serversPerHostList.get(i).get(j);
         }
+        if (serversPerHost[i].length > 1) {
+          multiServersPerHost = true;
+        }
       }
 
       for (int i = 0; i < serversPerRackList.size(); i++) {
@@ -299,6 +310,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         if (RegionReplicaUtil.isDefaultReplica(info)) {
           regionIndexToPrimaryIndex[i] = i;
         } else {
+          hasRegionReplicas = true;
           HRegionInfo primaryInfo = RegionReplicaUtil.getRegionInfoForDefaultReplica(info);
           regionIndexToPrimaryIndex[i] =
               regionsToIndex.containsKey(primaryInfo) ?
@@ -308,63 +320,66 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       }
 
       for (int i = 0; i < regionsPerServer.length; i++) {
-        regionsByPrimaryPerServer[i] = new int[regionsPerServer[i].length];
+        primariesOfRegionsPerServer[i] = new int[regionsPerServer[i].length];
         for (int j = 0; j < regionsPerServer[i].length; j++) {
           int primaryIndex = regionIndexToPrimaryIndex[regionsPerServer[i][j]];
-          regionsByPrimaryPerServer[i][j] = primaryIndex;
+          primariesOfRegionsPerServer[i][j] = primaryIndex;
         }
         // sort the regions by primaries.
-        Arrays.sort(regionsByPrimaryPerServer[i]);
+        Arrays.sort(primariesOfRegionsPerServer[i]);
       }
 
       // compute regionsPerHost
-      for (int i = 0 ; i < serversPerHost.length; i++) {
-        int numRegionsPerHost = 0;
-        for (int j = 0; j < serversPerHost[i].length; j++) {
-          numRegionsPerHost += regionsPerServer[serversPerHost[i][j]].length;
-        }
-        regionsPerHost[i] = new int[numRegionsPerHost];
-        regionsByPrimaryPerHost[i] = new int[numRegionsPerHost];
-      }
-
-      for (int i = 0 ; i < serversPerHost.length; i++) {
-        int numRegionPerHostIndex = 0;
-        for (int j = 0; j < serversPerHost[i].length; j++) {
-          for (int k = 0; k < regionsPerServer[serversPerHost[i][j]].length; k++) {
-            int region = regionsPerServer[serversPerHost[i][j]][k];
-            regionsPerHost[i][numRegionPerHostIndex] = region;
-            int primaryIndex = regionIndexToPrimaryIndex[region];
-            regionsByPrimaryPerHost[i][numRegionPerHostIndex] = primaryIndex;
-            numRegionPerHostIndex++;
+      if (multiServersPerHost) {
+        for (int i = 0 ; i < serversPerHost.length; i++) {
+          int numRegionsPerHost = 0;
+          for (int j = 0; j < serversPerHost[i].length; j++) {
+            numRegionsPerHost += regionsPerServer[serversPerHost[i][j]].length;
           }
+          regionsPerHost[i] = new int[numRegionsPerHost];
+          primariesOfRegionsPerHost[i] = new int[numRegionsPerHost];
         }
-        // sort the regions by primaries.
-        Arrays.sort(regionsByPrimaryPerHost[i]);
+        for (int i = 0 ; i < serversPerHost.length; i++) {
+          int numRegionPerHostIndex = 0;
+          for (int j = 0; j < serversPerHost[i].length; j++) {
+            for (int k = 0; k < regionsPerServer[serversPerHost[i][j]].length; k++) {
+              int region = regionsPerServer[serversPerHost[i][j]][k];
+              regionsPerHost[i][numRegionPerHostIndex] = region;
+              int primaryIndex = regionIndexToPrimaryIndex[region];
+              primariesOfRegionsPerHost[i][numRegionPerHostIndex] = primaryIndex;
+              numRegionPerHostIndex++;
+            }
+          }
+          // sort the regions by primaries.
+          Arrays.sort(primariesOfRegionsPerHost[i]);
+        }
       }
 
       // compute regionsPerRack
-      for (int i = 0 ; i < serversPerRack.length; i++) {
-        int numRegionsPerRack = 0;
-        for (int j = 0; j < serversPerRack[i].length; j++) {
-          numRegionsPerRack += regionsPerServer[serversPerRack[i][j]].length;
-        }
-        regionsPerRack[i] = new int[numRegionsPerRack];
-        regionsByPrimaryPerRack[i] = new int[numRegionsPerRack];
-      }
-
-      for (int i = 0 ; i < serversPerRack.length; i++) {
-        int numRegionPerRackIndex = 0;
-        for (int j = 0; j < serversPerRack[i].length; j++) {
-          for (int k = 0; k < regionsPerServer[serversPerRack[i][j]].length; k++) {
-            int region = regionsPerServer[serversPerRack[i][j]][k];
-            regionsPerRack[i][numRegionPerRackIndex] = region;
-            int primaryIndex = regionIndexToPrimaryIndex[region];
-            regionsByPrimaryPerRack[i][numRegionPerRackIndex] = primaryIndex;
-            numRegionPerRackIndex++;
+      if (numRacks > 1) {
+        for (int i = 0 ; i < serversPerRack.length; i++) {
+          int numRegionsPerRack = 0;
+          for (int j = 0; j < serversPerRack[i].length; j++) {
+            numRegionsPerRack += regionsPerServer[serversPerRack[i][j]].length;
           }
+          regionsPerRack[i] = new int[numRegionsPerRack];
+          primariesOfRegionsPerRack[i] = new int[numRegionsPerRack];
         }
-        // sort the regions by primaries.
-        Arrays.sort(regionsByPrimaryPerRack[i]);
+
+        for (int i = 0 ; i < serversPerRack.length; i++) {
+          int numRegionPerRackIndex = 0;
+          for (int j = 0; j < serversPerRack[i].length; j++) {
+            for (int k = 0; k < regionsPerServer[serversPerRack[i][j]].length; k++) {
+              int region = regionsPerServer[serversPerRack[i][j]][k];
+              regionsPerRack[i][numRegionPerRackIndex] = region;
+              int primaryIndex = regionIndexToPrimaryIndex[region];
+              primariesOfRegionsPerRack[i][numRegionPerRackIndex] = primaryIndex;
+              numRegionPerRackIndex++;
+            }
+          }
+          // sort the regions by primaries.
+          Arrays.sort(primariesOfRegionsPerRack[i]);
+        }
       }
     }
 
@@ -434,8 +449,8 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       }
       @Override
       public Action undoAction() {
-        // TODO fix this
-        return this;
+        // TODO implement this
+        throw new NotImplementedException();
       }
       @Override
       public String toString() {
@@ -533,10 +548,10 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       // there is a subset relation for server < host < rack
       // check server first
 
-      if (contains(regionsByPrimaryPerServer[server], primary)) {
+      if (contains(primariesOfRegionsPerServer[server], primary)) {
         // check for whether there are other servers that we can place this region
-        for (int i = 0; i < regionsByPrimaryPerServer.length; i++) {
-          if (i != server && !contains(regionsByPrimaryPerServer[i], primary)) {
+        for (int i = 0; i < primariesOfRegionsPerServer.length; i++) {
+          if (i != server && !contains(primariesOfRegionsPerServer[i], primary)) {
             return true; // meaning there is a better server
           }
         }
@@ -544,27 +559,31 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       }
 
       // check host
-      int host = serverIndexToHostIndex[server];
-      if (contains(regionsByPrimaryPerHost[host], primary)) {
-        // check for whether there are other hosts that we can place this region
-        for (int i = 0; i < regionsByPrimaryPerHost.length; i++) {
-          if (i != host && !contains(regionsByPrimaryPerHost[i], primary)) {
-            return true; // meaning there is a better host
+      if (multiServersPerHost) { // these arrays would only be allocated if we have more than one server per host
+        int host = serverIndexToHostIndex[server];
+        if (contains(primariesOfRegionsPerHost[host], primary)) {
+          // check for whether there are other hosts that we can place this region
+          for (int i = 0; i < primariesOfRegionsPerHost.length; i++) {
+            if (i != host && !contains(primariesOfRegionsPerHost[i], primary)) {
+              return true; // meaning there is a better host
+            }
           }
+          return false; // there is not a better host to place this
         }
-        return false; // there is not a better host to place this
       }
 
       // check rack
-      int rack = serverIndexToRackIndex[server];
-      if (contains(regionsByPrimaryPerRack[rack], primary)) {
-        // check for whether there are other racks that we can place this region
-        for (int i = 0; i < regionsByPrimaryPerRack.length; i++) {
-          if (i != rack && !contains(regionsByPrimaryPerRack[i], primary)) {
-            return true; // meaning there is a better rack
+      if (numRacks > 1) {
+        int rack = serverIndexToRackIndex[server];
+        if (contains(primariesOfRegionsPerRack[rack], primary)) {
+          // check for whether there are other racks that we can place this region
+          for (int i = 0; i < primariesOfRegionsPerRack.length; i++) {
+            if (i != rack && !contains(primariesOfRegionsPerRack[i], primary)) {
+              return true; // meaning there is a better rack
+            }
           }
+          return false; // there is not a better rack to place this
         }
-        return false; // there is not a better rack to place this
       }
       return false;
     }
@@ -614,35 +633,39 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       // update for servers
       int primary = regionIndexToPrimaryIndex[region];
       if (oldServer >= 0) {
-        regionsByPrimaryPerServer[oldServer] = removeRegion(
-          regionsByPrimaryPerServer[oldServer], primary);
+        primariesOfRegionsPerServer[oldServer] = removeRegion(
+          primariesOfRegionsPerServer[oldServer], primary);
       }
-      regionsByPrimaryPerServer[newServer] = addRegionSorted(
-        regionsByPrimaryPerServer[newServer], primary);
+      primariesOfRegionsPerServer[newServer] = addRegionSorted(
+        primariesOfRegionsPerServer[newServer], primary);
 
       // update for hosts
-      int oldHost = oldServer >= 0 ? serverIndexToHostIndex[oldServer] : -1;
-      int newHost = serverIndexToHostIndex[newServer];
-      if (newHost != oldHost) {
-        regionsPerHost[newHost] = addRegion(regionsPerHost[newHost], region);
-        regionsByPrimaryPerHost[newHost] = addRegionSorted(regionsByPrimaryPerHost[newHost], primary);
-        if (oldHost >= 0) {
-          regionsPerHost[oldHost] = removeRegion(regionsPerHost[oldHost], region);
-          regionsByPrimaryPerHost[oldHost] = removeRegion(
-            regionsByPrimaryPerHost[oldHost], primary); // will still be sorted
+      if (multiServersPerHost) {
+        int oldHost = oldServer >= 0 ? serverIndexToHostIndex[oldServer] : -1;
+        int newHost = serverIndexToHostIndex[newServer];
+        if (newHost != oldHost) {
+          regionsPerHost[newHost] = addRegion(regionsPerHost[newHost], region);
+          primariesOfRegionsPerHost[newHost] = addRegionSorted(primariesOfRegionsPerHost[newHost], primary);
+          if (oldHost >= 0) {
+            regionsPerHost[oldHost] = removeRegion(regionsPerHost[oldHost], region);
+            primariesOfRegionsPerHost[oldHost] = removeRegion(
+              primariesOfRegionsPerHost[oldHost], primary); // will still be sorted
+          }
         }
       }
 
       // update for racks
-      int oldRack = oldServer >= 0 ? serverIndexToRackIndex[oldServer] : -1;
-      int newRack = serverIndexToRackIndex[newServer];
-      if (newRack != oldRack) {
-        regionsPerRack[newRack] = addRegion(regionsPerRack[newRack], region);
-        regionsByPrimaryPerRack[newRack] = addRegionSorted(regionsByPrimaryPerRack[newRack], primary);
-        if (oldRack >= 0) {
-          regionsPerRack[oldRack] = removeRegion(regionsPerRack[oldRack], region);
-          regionsByPrimaryPerRack[oldRack] = removeRegion(
-            regionsByPrimaryPerRack[oldRack], primary); // will still be sorted
+      if (numRacks > 1) {
+        int oldRack = oldServer >= 0 ? serverIndexToRackIndex[oldServer] : -1;
+        int newRack = serverIndexToRackIndex[newServer];
+        if (newRack != oldRack) {
+          regionsPerRack[newRack] = addRegion(regionsPerRack[newRack], region);
+          primariesOfRegionsPerRack[newRack] = addRegionSorted(primariesOfRegionsPerRack[newRack], primary);
+          if (oldRack >= 0) {
+            regionsPerRack[oldRack] = removeRegion(regionsPerRack[oldRack], region);
+            primariesOfRegionsPerRack[oldRack] = removeRegion(
+              primariesOfRegionsPerRack[oldRack], primary); // will still be sorted
+          }
         }
       }
     }
@@ -671,18 +694,15 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     int[] addRegionSorted(int[] regions, int regionIndex) {
       int[] newRegions = new int[regions.length + 1];
       int i = 0;
-      for (i = 0; i < regions.length; i++) {
+      for (i = 0; i < regions.length; i++) { // find the index to insert
         if (regions[i] > regionIndex) {
-          newRegions[i] = regionIndex;
           break;
         }
-        newRegions[i] = regions[i];
       }
-      if (i == regions.length) {
-        newRegions[i] = regionIndex;
-      } else {
-        System.arraycopy(regions, i, newRegions, i+1, regions.length - i);
-      }
+      System.arraycopy(regions, 0, newRegions, 0, i); // copy first half
+      System.arraycopy(regions, i, newRegions, i+1, regions.length - i); // copy second half
+      newRegions[i] = regionIndex;
+
       return newRegions;
     }
 
@@ -894,6 +914,8 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
           cluster.doAssignRegion(region, serverName);
           serverIdx = (j + serverIdx + 1) % numServers; //remain from next server
           break;
+        } else {
+          lastFewRegions.add(region);
         }
       }
     }
@@ -976,8 +998,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     int serverIdx = RANDOM.nextInt(servers.size());
     do {
       server = servers.get(serverIdx++ % servers.size());
-    } while (servers.size() != 1
-        && cluster.wouldLowerAvailability(regionInfo, server)
+    } while (cluster.wouldLowerAvailability(regionInfo, server)
         && iterations++ < maxIterations);
     cluster.doAssignRegion(regionInfo, server);
     return server;
