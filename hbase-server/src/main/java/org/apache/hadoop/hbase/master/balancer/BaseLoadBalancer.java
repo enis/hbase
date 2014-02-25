@@ -920,7 +920,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       }
     }
     // just sprinkle the rest of the regions on random regionservers. The balanceCluster will
-    // make it optimal later. We should not need this if wouldLowerAvailability() is correct
+    // make it optimal later. we can end up with this if numReplicas > numServers.
     for (HRegionInfo region : lastFewRegions) {
       int i = RANDOM.nextInt(numServers);
       assignments.get(servers.get(i)).add(region);
