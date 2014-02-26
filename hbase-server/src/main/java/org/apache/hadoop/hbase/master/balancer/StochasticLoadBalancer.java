@@ -1100,7 +1100,7 @@ public class StochasticLoadBalancer extends BaseLoadBalancer {
      * For each primary region, it computes the total number of replicas in the array (numReplicas)
      * and returns a sum of numReplicas-1 squared. For example, if the server hosts
      * regions a, b, c, d, e, f where a and b are same replicas, and c,d,e are same replicas, it
-     * returns (2-1) * (2-1) + (3-1) * (3-1) + (1-1).
+     * returns (2-1) * (2-1) + (3-1) * (3-1) + (1-1) * (1-1).
      * @param primariesOfRegions a sorted array of primary regions ids for the regions hosted
      * @return a sum of numReplicas-1 squared for each primary region in the group.
      */

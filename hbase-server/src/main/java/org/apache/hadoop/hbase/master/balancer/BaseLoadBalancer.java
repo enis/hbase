@@ -449,7 +449,8 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       }
       @Override
       public Action undoAction() {
-        // TODO implement this
+        // TODO implement this. This action is not being used by the StochasticLB for now
+        // in case it uses it, we should implement this function.
         throw new NotImplementedException();
       }
       @Override
@@ -822,7 +823,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       }
       return false;
     }
-    // TODO: check for same host replicas
+    // TODO: check for co-located region replicas as well
 
     // Check if we even need to do any load balancing
     // HBASE-3681 check sloppiness first
