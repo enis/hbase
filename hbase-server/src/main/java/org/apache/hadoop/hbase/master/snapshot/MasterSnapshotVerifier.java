@@ -18,6 +18,7 @@
 package org.apache.hadoop.hbase.master.snapshot;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -33,6 +34,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.catalog.MetaReader;
+import org.apache.hadoop.hbase.client.RegionReplicaUtil;
 import org.apache.hadoop.hbase.io.HFileLink;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
@@ -148,6 +150,14 @@ public final class MasterSnapshotVerifier {
   private void verifyRegions(Path snapshotDir) throws IOException {
     List<HRegionInfo> regions = MetaReader.getTableRegions(this.services.getCatalogTracker(),
         tableName);
+    // Remove the non-default regions
+    Iterator<HRegionInfo> iterator = regions.iterator();
+    while (iterator.hasNext()) {
+      HRegionInfo hri = iterator.next();
+      if (!RegionReplicaUtil.isDefaultReplica(hri)) {
+        iterator.remove();
+      }
+    }
 
     Set<String> snapshotRegions = SnapshotReferenceUtil.getSnapshotRegionNames(fs, snapshotDir);
     if (snapshotRegions == null) {
