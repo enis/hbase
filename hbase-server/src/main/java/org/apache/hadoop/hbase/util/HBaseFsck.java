@@ -1476,9 +1476,13 @@ public class HBaseFsck extends Configured {
   private boolean recordMetaRegion() throws IOException {
     RegionLocations rl = ((ClusterConnection)connection).locateRegion(TableName.META_TABLE_NAME,
         HConstants.EMPTY_START_ROW, false, false);
+    if (rl == null) {
+      errors.reportError(ERROR_CODE.NULL_META_REGION,
+          "META region or some of its attributes are null.");
+      return false;
+    }
     for (HRegionLocation metaLocation : rl.getRegionLocations()) {
-      
-    // Check if Meta region is valid and existing
+      // Check if Meta region is valid and existing
       if (metaLocation == null || metaLocation.getRegionInfo() == null ||
           metaLocation.getHostname() == null) {
         errors.reportError(ERROR_CODE.NULL_META_REGION,
@@ -2851,23 +2855,28 @@ public class HBaseFsck extends Configured {
    * @throws InterruptedException
     */
   boolean checkMetaRegion() throws IOException, KeeperException, InterruptedException {
-    List<HbckInfo> metaRegions = Lists.newArrayList();
+    Map<Integer, HbckInfo> metaRegions = new HashMap<Integer, HbckInfo>();
     
     for (HbckInfo value : regionInfoMap.values()) {
       if (value.metaEntry != null && value.metaEntry.isMetaRegion()) {
-        metaRegions.add(value);
+        metaRegions.put(value.getReplicaId(), value);
       }
     }
+    int metaReplication = admin.getTableDescriptor(TableName.META_TABLE_NAME)
+        .getRegionReplication();
+    boolean noProblem = true;
     // There will be always entries in regionInfoMap corresponding to hbase:meta & its replicas
     // Check the deployed servers. It should be exactly one server for each replica.
-    boolean noProblem = true;
-    for (HbckInfo metaHbckInfo : metaRegions) {
+    for (int i = 0; i < metaReplication; i++) {
+      HbckInfo metaHbckInfo = metaRegions.remove(i);
       List<ServerName> servers = new ArrayList<ServerName>();
-      servers = metaHbckInfo.deployedOn;
+      if (metaHbckInfo != null) {
+        servers = metaHbckInfo.deployedOn;
+      }
       if (servers.size() != 1) {
         noProblem = false;
         if (servers.size() == 0) {
-          assignMetaReplica(metaHbckInfo.getReplicaId());
+          assignMetaReplica(i);
         } else if (servers.size() > 1) {
           errors
           .reportError(ERROR_CODE.MULTI_META_REGION, "hbase:meta, replicaId " +
@@ -2882,52 +2891,22 @@ public class HBaseFsck extends Configured {
         }
       }
     }
-
-    int metaReplication = admin.getTableDescriptor(TableName.META_TABLE_NAME).
-        getRegionReplication();
-    if (metaReplication > metaRegions.size()) {
-      noProblem = false;
-      errors.reportError(ERROR_CODE.NO_META_REGION, "Some hbase:meta region replica(s)" +
-          " are not found on any region server.");
-      if (shouldFixAssignments()) {
-        errors.print("Trying to deploy all replicas of hbase:meta..");
-        setShouldRerun();
-        // unassign everything and assign again. There may be replicaIds which are
-        // not sequential and that may lead to issues later on. Instead of trying
-        // to figure out the holes and such, easier it is to unassign everything.
-        // This is a little dumb
-        unassignAndAssign(metaRegions, metaReplication);
-      }
-    }
-    
-    if (metaReplication < metaRegions.size()) {
+    // unassign whatever is remaining in metaRegions. They are excess replicas.
+    for (Map.Entry<Integer, HbckInfo> entry : metaRegions.entrySet()) {
       noProblem = false;
       errors.reportError(ERROR_CODE.SHOULD_NOT_BE_DEPLOYED,
           "hbase:meta replicas are deployed in excess. Configured " + metaReplication +
           ", deployed " + metaRegions.size());
       if (shouldFixAssignments()) {
-        errors.print("Trying to undeploy extra replicas of hbase:meta..");
+        errors.print("Trying to undeploy excess replica, replicaId: " + entry.getKey() +
+            " of hbase:meta..");
         setShouldRerun();
-        // unassign everything and assign again. There may be replicaIds which are
-        // not sequential and that may lead to issues later on. Instead of trying
-        // to figure out the holes and such, easier it is to unassign everything.
-        // This is a little dumb
-        unassignAndAssign(metaRegions, metaReplication);
+        unassignMetaReplica(entry.getValue());
       }
     }
     // if noProblem is false, rerun hbck with hopefully fixed META
     // if noProblem is true, no errors, so continue normally
     return noProblem;
-  }
-
-  private void unassignAndAssign(List<HbckInfo> metaRegions, int actualMetaReplication)
-      throws IOException, InterruptedException, KeeperException {
-    for (HbckInfo hi : metaRegions) {
-      if (hi.metaEntry.getReplicaId() != HRegionInfo.DEFAULT_REPLICA_ID) unassignMetaReplica(hi);
-    }
-    for (int i = 1; i < actualMetaReplication; i++) {
-      assignMetaReplica(i);
-    }
   }
 
   private void unassignMetaReplica(HbckInfo hi) throws IOException, InterruptedException,
