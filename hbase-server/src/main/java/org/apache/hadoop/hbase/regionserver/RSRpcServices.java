@@ -144,6 +144,8 @@ import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.RegionSpecifier;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.RegionSpecifier.RegionSpecifierType;
 import org.apache.hadoop.hbase.protobuf.generated.RPCProtos.RequestHeader;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.CompactionDescriptor;
+import org.apache.hadoop.hbase.protobuf.generated.WALProtos.FlushDescriptor;
+import org.apache.hadoop.hbase.protobuf.generated.WALProtos.RegionEventDescriptor;
 import org.apache.hadoop.hbase.quotas.OperationQuota;
 import org.apache.hadoop.hbase.quotas.RegionServerQuotaManager;
 import org.apache.hadoop.hbase.regionserver.HRegion.Operation;
@@ -712,7 +714,22 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
           for (Cell metaCell : metaCells) {
             CompactionDescriptor compactionDesc = WALEdit.getCompaction(metaCell);
             if (compactionDesc != null) {
-              region.completeCompactionMarker(compactionDesc);
+              // replay the compaction. Remove the files from stores only if we are the primary
+              // region replica (thus own the files)
+              boolean isDefaultReplica = RegionReplicaUtil.isDefaultReplica(region.getRegionInfo());
+              region.replayWALCompactionMarker(compactionDesc, !isDefaultReplica, isDefaultReplica,
+                replaySeqId);
+              continue;
+            }
+            FlushDescriptor flushDesc = WALEdit.getFlushDescriptor(metaCell);
+            if (flushDesc != null) {
+              region.replayWALFlushMarker(flushDesc);
+              continue;
+            }
+            RegionEventDescriptor regionEvent = WALEdit.getRegionEventDescriptor(metaCell);
+            if (regionEvent != null) {
+              region.replayWALRegionEventMarker(regionEvent);
+              continue;
             }
           }
           it.remove();

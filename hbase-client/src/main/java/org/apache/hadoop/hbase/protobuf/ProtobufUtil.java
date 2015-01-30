@@ -2579,6 +2579,7 @@ public final class ProtobufUtil {
     FlushDescriptor.Builder desc = FlushDescriptor.newBuilder()
         .setAction(action)
         .setEncodedRegionName(ByteStringer.wrap(hri.getEncodedNameAsBytes()))
+        .setRegionName(ByteStringer.wrap(hri.getRegionName()))
         .setFlushSequenceNumber(flushSeqId)
         .setTableName(ByteStringer.wrap(hri.getTable().getName()));
 
@@ -2604,6 +2605,7 @@ public final class ProtobufUtil {
         .setEventType(eventType)
         .setTableName(ByteStringer.wrap(hri.getTable().getName()))
         .setEncodedRegionName(ByteStringer.wrap(hri.getEncodedNameAsBytes()))
+        .setRegionName(ByteStringer.wrap(hri.getRegionName()))
         .setLogSequenceNumber(seqId)
         .setServer(toServerName(server));
 
