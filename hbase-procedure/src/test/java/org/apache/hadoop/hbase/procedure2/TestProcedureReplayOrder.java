@@ -31,14 +31,11 @@ import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -68,7 +65,7 @@ public class TestProcedureReplayOrder {
 
     logDir = new Path(testDir, "proc-logs");
     procEnv = new TestProcedureEnv();
-    procStore = ProcedureTestingUtility.createWalStore(htu.getConfiguration(), fs, logDir);
+    procStore = ProcedureTestingUtility.createInMemoryStore(htu.getConfiguration(), fs, logDir);
     procExecutor = new ProcedureExecutor(htu.getConfiguration(), procEnv, procStore);
     procStore.start(24);
     procExecutor.start(1);
@@ -192,6 +189,7 @@ public class TestProcedureReplayOrder {
       return null;
     }
 
+    @Override
     protected boolean acquireLock(final TestProcedureEnv env) {
       return env.canAcquireLock();
     }
@@ -213,6 +211,7 @@ public class TestProcedureReplayOrder {
       return new Procedure[] { new TestSingleStepProcedure() };
     }
 
+    @Override
     protected boolean acquireLock(final TestProcedureEnv env) {
       return true;
     }

@@ -65,8 +65,8 @@ public class TestMasterFailoverWithProcedures {
 
   private static void setupConf(Configuration conf) {
     // we need less number of retries
-    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 2); // this is multiplied by 10
-    conf.setLong(HConstants.HBASE_CLIENT_PAUSE, 5);
+    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1); // this is multiplied by 10
+    conf.setLong(HConstants.HBASE_CLIENT_PAUSE, 10);
 
   }
 
