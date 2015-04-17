@@ -6372,7 +6372,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * Perform atomic mutations within the region w/o nonces.
    * See {@link #mutateRowsWithLocks(Collection, Collection, long, long)}
    */
-  public void mutateRowsWithLocks(Collection<Mutation> mutations,
+  public void mutateRowsWithLocks(Collection<? extends Mutation> mutations,
       Collection<byte[]> rowsToLock) throws IOException {
     mutateRowsWithLocks(mutations, rowsToLock, HConstants.NO_NONCE, HConstants.NO_NONCE);
   }
@@ -6389,7 +6389,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * <code>rowsToLock</code> is sorted in order to avoid deadlocks.
    * @throws IOException
    */
-  public void mutateRowsWithLocks(Collection<Mutation> mutations,
+  public void mutateRowsWithLocks(Collection<? extends Mutation> mutations,
       Collection<byte[]> rowsToLock, long nonceGroup, long nonce) throws IOException {
     MultiRowMutationProcessor proc = new MultiRowMutationProcessor(mutations, rowsToLock);
     processRowsWithLocks(proc, -1, nonceGroup, nonce);

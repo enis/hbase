@@ -45,7 +45,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.management.MalformedObjectNameException;
@@ -151,10 +150,10 @@ import org.apache.hadoop.hbase.util.JSONBean;
 import org.apache.hadoop.hbase.util.JvmPauseMonitor;
 import org.apache.hadoop.hbase.util.ServerRegionReplicaUtil;
 import org.apache.hadoop.hbase.util.Sleeper;
-import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.util.VersionInfo;
-import org.apache.hadoop.hbase.wal.DefaultWALProvider;
 import org.apache.hadoop.hbase.wal.WAL;
+import org.apache.hadoop.hbase.wal.WALContainer;
+import org.apache.hadoop.hbase.wal.WALContainer.FSWALContext;
 import org.apache.hadoop.hbase.wal.WALFactory;
 import org.apache.hadoop.hbase.zookeeper.ClusterStatusTracker;
 import org.apache.hadoop.hbase.zookeeper.MasterAddressTracker;
@@ -351,13 +350,7 @@ public class HRegionServer extends HasThread implements
    */
   ScheduledChore periodicFlusher;
 
-  protected volatile WALFactory walFactory;
-
-  // WAL roller. log is protected rather than private to avoid
-  // eclipse warning when accessed by inner classes
-  final LogRoller walRoller;
-  // Lazily initialized if this RegionServer hosts a meta table.
-  final AtomicReference<LogRoller> metawalRoller = new AtomicReference<LogRoller>();
+  protected final WALContainer walContainer;
 
   // flag set after we're done setting up server threads
   final AtomicBoolean online = new AtomicBoolean(false);
@@ -593,7 +586,7 @@ public class HRegionServer extends HasThread implements
 
     rpcServices.start();
     putUpWebUI();
-    this.walRoller = new LogRoller(this, this);
+    this.walContainer = new WALContainer(this, this, uncaughtExceptionHandler);
     this.choreService = new ChoreService(getServerName().toString());
   }
 
@@ -1288,19 +1281,17 @@ public class HRegionServer extends HasThread implements
   }
 
   private void shutdownWAL(final boolean close) {
-    if (this.walFactory != null) {
-      try {
-        if (close) {
-          walFactory.close();
-        } else {
-          walFactory.shutdown();
-        }
-      } catch (Throwable e) {
-        e = e instanceof RemoteException ? ((RemoteException) e).unwrapRemoteException() : e;
-        LOG.error("Shutdown / close of WAL failed: " + e);
-        LOG.debug("Shutdown / close exception details:", e);
-      }
-    }
+    walContainer.shutdownWAL(close);
+  }
+
+  @Override
+  public WALFactory getWALFactory() {
+    return walContainer.getWALFactory();
+  }
+
+  @Override
+  public void requestRollAll() {
+    walContainer.requestRollAll();
   }
 
   /*
@@ -1351,7 +1342,7 @@ public class HRegionServer extends HasThread implements
       ZNodeClearer.writeMyEphemeralNodeOnDisk(getMyEphemeralNodePath());
 
       this.cacheConfig = new CacheConfig(conf);
-      this.walFactory = setupWALAndReplication();
+      setupWALAndReplication();
       // Init in here rather than in constructor after thread name has been set
       this.metricsRegionServer = new MetricsRegionServer(new MetricsRegionServerWrapperImpl(this));
 
@@ -1588,21 +1579,14 @@ public class HRegionServer extends HasThread implements
    * @return A WAL instance.
    * @throws IOException
    */
-  private WALFactory setupWALAndReplication() throws IOException {
+  private void setupWALAndReplication() throws IOException {
     // TODO Replication make assumptions here based on the default filesystem impl
-    final Path oldLogDir = new Path(rootDir, HConstants.HREGION_OLDLOGDIR_NAME);
-    final String logName = DefaultWALProvider.getWALDirectoryName(this.serverName.toString());
-
-    Path logdir = new Path(rootDir, logName);
-    if (LOG.isDebugEnabled()) LOG.debug("logdir=" + logdir);
-    if (this.fs.exists(logdir)) {
-      throw new RegionServerRunningException("Region server has already " +
-        "created directory at " + this.serverName.toString());
-    }
+    FSWALContext fsWAlContext = walContainer.checkServerWALDir(this.fs, rootDir, this.serverName);
 
     // Instantiate replication manager if replication enabled.  Pass it the
     // log directories.
-    createNewReplicationInstance(conf, this, this.fs, logdir, oldLogDir);
+    createNewReplicationInstance(conf, this, this.fs, fsWAlContext.serverWalDir,
+      fsWAlContext.walArchiveDir);
 
     // listeners the wal factory will add to wals it creates.
     final List<WALActionsListener> listeners = new ArrayList<WALActionsListener>();
@@ -1613,35 +1597,7 @@ public class HRegionServer extends HasThread implements
       listeners.add(this.replicationSourceHandler.getWALActionsListener());
     }
 
-    return new WALFactory(conf, listeners, serverName.toString());
-  }
-
-  /**
-   * We initialize the roller for the wal that handles meta lazily
-   * since we don't know if this regionserver will handle it. All calls to
-   * this method return a reference to the that same roller. As newly referenced
-   * meta regions are brought online, they will be offered to the roller for maintenance.
-   * As a part of that registration process, the roller will add itself as a
-   * listener on the wal.
-   */
-  protected LogRoller ensureMetaWALRoller() {
-    // Using a tmp log roller to ensure metaLogRoller is alive once it is not
-    // null
-    LogRoller roller = metawalRoller.get();
-    if (null == roller) {
-      LogRoller tmpLogRoller = new LogRoller(this, this);
-      String n = Thread.currentThread().getName();
-      Threads.setDaemonThreadRunning(tmpLogRoller.getThread(),
-          n + "-MetaLogRoller", uncaughtExceptionHandler);
-      if (metawalRoller.compareAndSet(null, tmpLogRoller)) {
-        roller = tmpLogRoller;
-      } else {
-        // Another thread won starting the roller
-        Threads.shutdown(tmpLogRoller.getThread());
-        roller = metawalRoller.get();
-      }
-    }
-    return roller;
+    walContainer.setupWAL(conf, serverName, listeners);
   }
 
   public MetricsRegionServer getRegionServerMetrics() {
@@ -1690,8 +1646,8 @@ public class HRegionServer extends HasThread implements
           conf.getInt("hbase.regionserver.executor.openregion.threads", 3)));
     }
 
-    Threads.setDaemonThreadRunning(this.walRoller.getThread(), getName() + ".logRoller",
-        uncaughtExceptionHandler);
+    this.walContainer.startServiceThreads(getName());
+
     this.cacheFlusher.start(uncaughtExceptionHandler);
 
     if (this.compactionChecker != null) choreService.scheduleChore(compactionChecker);
@@ -1728,7 +1684,8 @@ public class HRegionServer extends HasThread implements
     sinkConf.setInt(HConstants.HBASE_RPC_TIMEOUT_KEY,
       conf.getInt("hbase.log.replay.rpc.timeout", 30000)); // default 30 seconds
     sinkConf.setInt("hbase.client.serverside.retries.multiplier", 1);
-    this.splitLogWorker = new SplitLogWorker(this, sinkConf, this, this, walFactory);
+    this.splitLogWorker = new SplitLogWorker(this, sinkConf, this, this,
+      walContainer.getWALFactory());
     splitLogWorker.start();
   }
 
@@ -1798,38 +1755,18 @@ public class HRegionServer extends HasThread implements
     }
     // Verify that all threads are alive
     if (!(leases.isAlive()
-        && cacheFlusher.isAlive() && walRoller.isAlive()
+        && cacheFlusher.isAlive() && walContainer.isServiceThreadsAlive()
         && this.compactionChecker.isScheduled()
         && this.periodicFlusher.isScheduled())) {
       stop("One or more threads are no longer alive -- stop");
       return false;
     }
-    final LogRoller metawalRoller = this.metawalRoller.get();
-    if (metawalRoller != null && !metawalRoller.isAlive()) {
-      stop("Meta WAL roller thread is no longer alive -- stop");
-      return false;
-    }
     return true;
   }
 
-  private static final byte[] UNSPECIFIED_REGION = new byte[]{};
-
   @Override
   public WAL getWAL(HRegionInfo regionInfo) throws IOException {
-    WAL wal;
-    LogRoller roller = walRoller;
-    //_ROOT_ and hbase:meta regions have separate WAL.
-    if (regionInfo != null && regionInfo.isMetaTable() &&
-        regionInfo.getReplicaId() == HRegionInfo.DEFAULT_REPLICA_ID) {
-      roller = ensureMetaWALRoller();
-      wal = walFactory.getMetaWAL(regionInfo.getEncodedNameAsBytes());
-    } else if (regionInfo == null) {
-      wal = walFactory.getWAL(UNSPECIFIED_REGION);
-    } else {
-      wal = walFactory.getWAL(regionInfo.getEncodedNameAsBytes());
-    }
-    roller.addWAL(wal);
-    return wal;
+    return walContainer.getWAL(regionInfo);
   }
 
   @Override
@@ -2113,12 +2050,8 @@ public class HRegionServer extends HasThread implements
     if (this.spanReceiverHost != null) {
       this.spanReceiverHost.closeReceivers();
     }
-    if (this.walRoller != null) {
-      Threads.shutdown(this.walRoller.getThread());
-    }
-    final LogRoller metawalRoller = this.metawalRoller.get();
-    if (metawalRoller != null) {
-      Threads.shutdown(metawalRoller.getThread());
+    if (this.walContainer != null) {
+      walContainer.stopServiceThreads();
     }
     if (this.compactSplitThread != null) {
       this.compactSplitThread.join();

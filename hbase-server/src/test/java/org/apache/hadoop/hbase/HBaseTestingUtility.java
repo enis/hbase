@@ -2188,6 +2188,18 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
     return rowCount;
   }
 
+  public void loadNumericRowsMultiPut(final Table t, final byte[] f, int startRow, int endRow)
+      throws IOException {
+    ArrayList<Put> puts = new ArrayList<>(endRow - startRow);
+    for (int i = startRow; i < endRow; i++) {
+      byte[] data = Bytes.toBytes(String.valueOf(i));
+      Put put = new Put(data);
+      put.add(f, null, data);
+      puts.add(put);
+    }
+    t.put(puts);
+  }
+
   public void loadNumericRows(final Table t, final byte[] f, int startRow, int endRow)
       throws IOException {
     for (int i = startRow; i < endRow; i++) {

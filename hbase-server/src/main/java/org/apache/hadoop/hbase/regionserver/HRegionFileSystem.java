@@ -96,7 +96,7 @@ public class HRegionFileSystem {
    * @param tableDir {@link Path} to where the table is being stored
    * @param regionInfo {@link HRegionInfo} for region
    */
-  HRegionFileSystem(final Configuration conf, final FileSystem fs, final Path tableDir,
+  public HRegionFileSystem(final Configuration conf, final FileSystem fs, final Path tableDir,
       final HRegionInfo regionInfo) {
     this.fs = fs;
     this.conf = conf;

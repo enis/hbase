@@ -4567,7 +4567,7 @@ public class TestFromClientSide {
     assertIncrementKey(kvs[0], ROW, FAMILY, QUALIFIERS[0], 2);
     assertIncrementKey(kvs[1], ROW, FAMILY, QUALIFIERS[1], 2);
     assertIncrementKey(kvs[2], ROW, FAMILY, QUALIFIERS[2], 2);
-    
+
     ht.close();
   }
 

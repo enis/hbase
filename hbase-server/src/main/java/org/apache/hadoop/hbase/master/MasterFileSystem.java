@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.master;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -46,7 +47,6 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.backup.HFileArchiver;
-import org.apache.hadoop.hbase.client.TableState;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.fs.HFileSystem;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
@@ -107,6 +107,14 @@ public class MasterFileSystem {
 
   public MasterFileSystem(Server master, MasterServices services)
   throws IOException {
+    this(master, services, true,
+        new SplitLogManager(master, master.getConfiguration(), master, services,
+            master.getServerName()));
+  }
+
+  public MasterFileSystem(Server master, MasterServices services,
+      boolean initializeFsLayout, SplitLogManager splitLogManager)
+  throws IOException {
     this.conf = master.getConfiguration();
     this.master = master;
     this.services = services;
@@ -124,12 +132,14 @@ public class MasterFileSystem {
     fs.setConf(conf);
     // setup the filesystem variable
     // set up the archived logs path
-    this.oldLogDir = createInitialFileSystemLayout();
+    this.oldLogDir =  new Path(this.rootdir, HConstants.HREGION_OLDLOGDIR_NAME);
+    if (initializeFsLayout) {
+      createInitialFileSystemLayout();
+    }
     HFileSystem.addLocationsOrderInterceptor(conf);
-    this.splitLogManager =
-        new SplitLogManager(master, master.getConfiguration(), master, services,
-            master.getServerName());
-    this.distributedLogReplay = this.splitLogManager.isLogReplaying();
+    this.splitLogManager = splitLogManager;
+    this.distributedLogReplay
+      = splitLogManager == null ? false : this.splitLogManager.isLogReplaying();
   }
 
   /**
@@ -148,8 +158,6 @@ public class MasterFileSystem {
 
     // check if temp directory exists and clean it
     checkTempDir(this.tempdir, conf, this.fs);
-
-    Path oldLogDir = new Path(this.rootdir, HConstants.HREGION_OLDLOGDIR_NAME);
 
     // Make sure the region servers can archive their old logs
     if(!this.fs.exists(oldLogDir)) {
@@ -214,7 +222,7 @@ public class MasterFileSystem {
    * Inspect the log directory to find dead servers which need recovery work
    * @return A set of ServerNames which aren't running but still have WAL files left in file system
    */
-  Set<ServerName> getFailedServersFromLogFolders() {
+  public Set<ServerName> getFailedServersFromLogFolders() {
     boolean retrySplitting = !conf.getBoolean("hbase.hlog.split.skip.errors",
         WALSplitter.SPLIT_SKIP_ERRORS_DEFAULT);
 
@@ -231,8 +239,10 @@ public class MasterFileSystem {
         FileStatus[] logFolders = FSUtils.listStatus(this.fs, logsDirPath, null);
         // Get online servers after getting log folders to avoid log folder deletion of newly
         // checked in region servers . see HBASE-5916
-        Set<ServerName> onlineServers = ((HMaster) master).getServerManager().getOnlineServers()
-            .keySet();
+        Set<ServerName> onlineServers = Collections.emptySet();
+        if (services != null) {
+          onlineServers = services.getServerManager().getOnlineServers().keySet();
+        }
 
         if (logFolders == null || logFolders.length == 0) {
           LOG.debug("No log files to split, proceeding...");
@@ -310,10 +320,10 @@ public class MasterFileSystem {
   @edu.umd.cs.findbugs.annotations.SuppressWarnings(value="UL_UNRELEASED_LOCK", justification=
       "We only release this lock when we set it. Updates to code that uses it should verify use " +
       "of the guard boolean.")
-  private List<Path> getLogDirs(final Set<ServerName> serverNames) throws IOException {
+  public List<Path> renameWALDirs(final Set<ServerName> serverNames) throws IOException {
     List<Path> logDirs = new ArrayList<Path>();
     boolean needReleaseLock = false;
-    if (!this.services.isInitialized()) {
+    if (this.services != null && !this.services.isInitialized()) {
       // during master initialization, we could have multiple places splitting a same wal
       this.splitLogLock.lock();
       needReleaseLock = true;
@@ -329,7 +339,9 @@ public class MasterFileSystem {
             throw new IOException("Failed fs.rename for log split: " + logDir);
           }
           logDir = splitDir;
-          LOG.debug("Renamed region directory: " + splitDir);
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Renamed WAL directory: " + splitDir);
+          }
         } else if (!fs.exists(splitDir)) {
           LOG.info("Log dir for server " + serverName + " does not exist");
           continue;
@@ -385,7 +397,7 @@ public class MasterFileSystem {
    */
   public void splitLog(final Set<ServerName> serverNames, PathFilter filter) throws IOException {
     long splitTime = 0, splitLogSize = 0;
-    List<Path> logDirs = getLogDirs(serverNames);
+    List<Path> logDirs = renameWALDirs(serverNames);
 
     splitLogManager.handleDeadWorkers(serverNames);
     splitTime = EnvironmentEdgeManager.currentTime();

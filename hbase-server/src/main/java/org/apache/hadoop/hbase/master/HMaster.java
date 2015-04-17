@@ -108,11 +108,14 @@ import org.apache.hadoop.hbase.monitoring.TaskMonitor;
 import org.apache.hadoop.hbase.procedure.MasterProcedureManagerHost;
 import org.apache.hadoop.hbase.procedure.flush.MasterFlushTableProcedureManager;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
+import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
+import org.apache.hadoop.hbase.procedure2.store.RegionProcedureStore;
 import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.RegionServerInfo;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
 import org.apache.hadoop.hbase.quotas.MasterQuotaManager;
 import org.apache.hadoop.hbase.quotas.RegionStateListener;
+import org.apache.hadoop.hbase.regionserver.BootstrapTableService;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.regionserver.RSRpcServices;
 import org.apache.hadoop.hbase.regionserver.RegionCoprocessorHost;
@@ -300,7 +303,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
   private volatile MasterQuotaManager quotaManager;
 
   private ProcedureExecutor<MasterProcedureEnv> procedureExecutor;
-  private WALProcedureStore procedureStore;
+  private ProcedureStore procedureStore;
 
   // handle table states
   private TableStateManager tableStateManager;
@@ -310,6 +313,8 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
 
   /** jetty server for master to redirect requests to regionserver infoServer */
   private org.mortbay.jetty.Server masterJettyServer;
+
+  private BootstrapTableService bootstrapTableService;
 
   public static class RedirectServlet extends HttpServlet {
     private static final long serialVersionUID = 2894774810058302472L;
@@ -610,6 +615,11 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     status.setStatus("Initializing Master file system");
 
     this.masterActiveTime = System.currentTimeMillis();
+
+    // Start booststrap table service to serve small persisted data
+    bootstrapTableService = new BootstrapTableService(conf, serverName, this, this, this);
+    bootstrapTableService.startAndWait();
+
     // TODO: Do this using Dependency Injection, using PicoContainer, Guice or Spring.
     this.fileSystemManager = new MasterFileSystem(this, this);
 
@@ -1082,8 +1092,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     final Path logDir = new Path(fileSystemManager.getRootDir(),
         MasterProcedureConstants.MASTER_PROCEDURE_LOGDIR);
 
-    procedureStore = new WALProcedureStore(conf, fileSystemManager.getFileSystem(), logDir,
-        new MasterProcedureEnv.WALStoreLeaseRecovery(this));
+    procedureStore = new RegionProcedureStore(bootstrapTableService.getConnection());
     procedureStore.registerListener(new MasterProcedureEnv.MasterProcedureStoreListener(this));
     procedureExecutor = new ProcedureExecutor(conf, procEnv, procedureStore,
         procEnv.getProcedureQueue());
@@ -1102,6 +1111,10 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
 
     if (procedureStore != null) {
       procedureStore.stop(isAborted());
+    }
+
+    if (bootstrapTableService != null) {
+      this.bootstrapTableService.stopAndWait();
     }
   }
 

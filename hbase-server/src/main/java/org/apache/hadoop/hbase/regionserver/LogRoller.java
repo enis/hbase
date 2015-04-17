@@ -29,6 +29,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.Server;
+import org.apache.hadoop.hbase.region.RegionServices;
 import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
 import org.apache.hadoop.hbase.wal.WAL;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
@@ -56,7 +57,7 @@ public class LogRoller extends HasThread {
   private final ConcurrentHashMap<WAL, Boolean> walNeedsRoll =
       new ConcurrentHashMap<WAL, Boolean>();
   private final Server server;
-  protected final RegionServerServices services;
+  protected final RegionServices services;
   private volatile long lastrolltime = System.currentTimeMillis();
   // Period to roll log.
   private final long rollperiod;
@@ -89,7 +90,7 @@ public class LogRoller extends HasThread {
   }
 
   /** @param server */
-  public LogRoller(final Server server, final RegionServerServices services) {
+  public LogRoller(final Server server, final RegionServices services) {
     super();
     this.server = server;
     this.services = services;

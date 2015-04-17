@@ -297,7 +297,7 @@ class MetricsRegionServerWrapperImpl
   public long getNumStores() {
     return numStores;
   }
-  
+
   @Override
   public long getNumWALFiles() {
     return numWALFiles;
@@ -307,7 +307,7 @@ class MetricsRegionServerWrapperImpl
   public long getWALFileSize() {
     return walFileSize;
   }
-  
+
   @Override
   public long getNumStoreFiles() {
     return numStoreFiles;
@@ -521,8 +521,8 @@ class MetricsRegionServerWrapperImpl
       }
       lastRan = currentTime;
 
-      numWALFiles = DefaultWALProvider.getNumLogFiles(regionServer.walFactory);
-      walFileSize = DefaultWALProvider.getLogFileSize(regionServer.walFactory);
+      numWALFiles = DefaultWALProvider.getNumLogFiles(regionServer.getWALFactory());
+      walFileSize = DefaultWALProvider.getLogFileSize(regionServer.getWALFactory());
 
       //Copy over computed values so that no thread sees half computed values.
       numStores = tempNumStores;

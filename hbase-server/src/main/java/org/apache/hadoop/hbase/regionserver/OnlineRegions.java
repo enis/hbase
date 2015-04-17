@@ -25,7 +25,6 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerName;
 
 /**
@@ -34,7 +33,7 @@ import org.apache.hadoop.hbase.ServerName;
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
 @InterfaceStability.Evolving
-public interface OnlineRegions extends Server {
+public interface OnlineRegions {
   /**
    * Add to online regions.
    * @param r

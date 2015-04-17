@@ -75,8 +75,8 @@ import com.google.common.annotations.VisibleForTesting;
  * <p>SplitLogManager monitors the tasks that it creates using the
  * timeoutMonitor thread. If a task's progress is slow then
  * {@link SplitLogManagerCoordination#checkTasks} will take away the
- * task from the owner {@link org.apache.hadoop.hbase.regionserver.SplitLogWorker} 
- * and the task will be up for grabs again. When the task is done then it is 
+ * task from the owner {@link org.apache.hadoop.hbase.regionserver.SplitLogWorker}
+ * and the task will be up for grabs again. When the task is done then it is
  * deleted by SplitLogManager.
  *
  * <p>Clients call {@link #splitLogDistributed(Path)} to split a region server's
@@ -176,7 +176,6 @@ public class SplitLogManager {
    * {@link org.apache.hadoop.hbase.wal.WALSplitter#split(Path, Path, Path, FileSystem,
    *     Configuration, WALFactory)} for tests.
    */
-  @VisibleForTesting
   public static FileStatus[] getFileList(final Configuration conf, final List<Path> logDirs,
       final PathFilter filter)
       throws IOException {

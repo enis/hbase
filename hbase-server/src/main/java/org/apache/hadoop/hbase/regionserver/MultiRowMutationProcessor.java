@@ -42,10 +42,10 @@ import org.apache.hadoop.hbase.util.Bytes;
 class MultiRowMutationProcessor extends BaseRowProcessor<MultiRowMutationProcessorRequest,
 MultiRowMutationProcessorResponse> {
   Collection<byte[]> rowsToLock;
-  Collection<Mutation> mutations;
+  Collection<? extends Mutation> mutations;
   MiniBatchOperationInProgress<Mutation> miniBatch;
 
-  MultiRowMutationProcessor(Collection<Mutation> mutations,
+  MultiRowMutationProcessor(Collection<? extends Mutation> mutations,
                             Collection<byte[]> rowsToLock) {
     this.rowsToLock = rowsToLock;
     this.mutations = mutations;
@@ -60,7 +60,7 @@ MultiRowMutationProcessorResponse> {
   public boolean readOnly() {
     return false;
   }
-  
+
   @Override
   public MultiRowMutationProcessorResponse getResult() {
     return MultiRowMutationProcessorResponse.getDefaultInstance();

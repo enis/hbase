@@ -1682,7 +1682,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       checkOpen();
       requestCount.increment();
       regionServer.getRegionServerCoprocessorHost().preRollWALWriterRequest();
-      regionServer.walRoller.requestRollAll();
+      regionServer.walContainer.requestRollAll();
       regionServer.getRegionServerCoprocessorHost().postRollWALWriterRequest();
       RollWALWriterResponse.Builder builder = RollWALWriterResponse.newBuilder();
       return builder.build();

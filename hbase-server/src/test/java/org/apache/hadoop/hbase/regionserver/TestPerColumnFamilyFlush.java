@@ -505,7 +505,7 @@ public class TestPerColumnFamilyFlush {
       table.put(createPut(1, 12345678));
       table.flushCommits();
       // Make numRolledLogFiles greater than maxLogs
-      desiredRegionAndServer.getSecond().walRoller.requestRollAll();
+      desiredRegionAndServer.getSecond().requestRollAll();
       // Wait for some time till the flush caused by log rolling happens.
       TEST_UTIL.waitFor(30000, new Waiter.ExplainingPredicate<Exception>() {
 

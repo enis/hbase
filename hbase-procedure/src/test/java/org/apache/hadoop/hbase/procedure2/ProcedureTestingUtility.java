@@ -26,13 +26,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.util.Threads;
+import org.apache.hadoop.hbase.procedure2.store.InMemoryProcedureStore;
 import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
-import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class ProcedureTestingUtility {
   private static final Log LOG = LogFactory.getLog(ProcedureTestingUtility.class);
@@ -42,17 +40,12 @@ public class ProcedureTestingUtility {
 
   public static ProcedureStore createStore(final Configuration conf, final FileSystem fs,
       final Path baseDir) throws IOException {
-    return createWalStore(conf, fs, baseDir);
+    return createInMemoryStore(conf, fs, baseDir);
   }
 
-  public static WALProcedureStore createWalStore(final Configuration conf, final FileSystem fs,
-      final Path logDir) throws IOException {
-    return new WALProcedureStore(conf, fs, logDir, new WALProcedureStore.LeaseRecovery() {
-      @Override
-      public void recoverFileLease(FileSystem fs, Path path) throws IOException {
-        // no-op
-      }
-    });
+  public static InMemoryProcedureStore createInMemoryStore(final Configuration conf,
+      final FileSystem fs, final Path logDir) throws IOException {
+    return new InMemoryProcedureStore();
   }
 
   public static <TEnv> void restart(ProcedureExecutor<TEnv> procExecutor)

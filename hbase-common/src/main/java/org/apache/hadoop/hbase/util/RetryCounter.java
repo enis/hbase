@@ -174,4 +174,10 @@ public class RetryCounter {
   public int getAttemptTimes() {
     return attempts;
   }
+
+  @Override
+  public String toString() {
+    return new StringBuilder(" retrying, attempts:")
+      .append(attempts).append("/").append(retryConfig.getMaxAttempts()).toString();
+  }
 }

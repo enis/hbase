@@ -20,32 +20,35 @@ package org.apache.hadoop.hbase.master.procedure;
 
 import java.util.concurrent.CountDownLatch;
 
+import org.apache.commons.lang.math.RandomUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
+import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.procedure2.ProcedureTestingUtility;
 import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
-import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
+import org.apache.hadoop.hbase.procedure2.store.RegionProcedureStore;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProcedureProtos.CreateTableState;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProcedureProtos.DeleteTableState;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProcedureProtos.DisableTableState;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProcedureProtos.EnableTableState;
 import org.apache.hadoop.hbase.protobuf.generated.MasterProcedureProtos.TruncateTableState;
+import org.apache.hadoop.hbase.regionserver.BootstrapTableService;
 import org.apache.hadoop.hbase.testclassification.MasterTests;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.ModifyRegionUtils;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -53,9 +56,6 @@ import org.junit.experimental.categories.Category;
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @Category({MasterTests.class, LargeTests.class})
 public class TestMasterFailoverWithProcedures {
@@ -64,6 +64,10 @@ public class TestMasterFailoverWithProcedures {
   protected static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
 
   private static void setupConf(Configuration conf) {
+    // we need less number of retries
+    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 2); // this is multiplied by 10
+    conf.setLong(HConstants.HBASE_CLIENT_PAUSE, 5);
+
   }
 
   @Before
@@ -88,7 +92,6 @@ public class TestMasterFailoverWithProcedures {
   @Test(timeout=60000)
   public void testWalRecoverLease() throws Exception {
     final ProcedureStore masterStore = getMasterProcedureExecutor().getStore();
-    assertTrue("expected WALStore for this test", masterStore instanceof WALProcedureStore);
 
     HMaster firstMaster = UTIL.getHBaseCluster().getMaster();
     // Abort Latch for the master store
@@ -106,10 +109,12 @@ public class TestMasterFailoverWithProcedures {
     HMaster backupMaster3 = Mockito.mock(HMaster.class);
     Mockito.doReturn(firstMaster.getConfiguration()).when(backupMaster3).getConfiguration();
     Mockito.doReturn(true).when(backupMaster3).isActiveMaster();
-    final WALProcedureStore backupStore3 = new WALProcedureStore(firstMaster.getConfiguration(),
-        firstMaster.getMasterFileSystem().getFileSystem(),
-        ((WALProcedureStore)masterStore).getLogDir(),
-        new MasterProcedureEnv.WALStoreLeaseRecovery(backupMaster3));
+    BootstrapTableService bootstrapTable = new BootstrapTableService(firstMaster.getConfiguration(),
+      ServerName.valueOf("localhost", RandomUtils.nextInt(1000), RandomUtils.nextInt(1000)),
+      null, null, null);
+    bootstrapTable.startAndWait();
+    final RegionProcedureStore backupStore3 = new RegionProcedureStore(
+      bootstrapTable.getConnection());
     // Abort Latch for the test store
     final CountDownLatch backupStore3Abort = new CountDownLatch(1);
     backupStore3.registerListener(new ProcedureStore.ProcedureStoreListener() {
@@ -127,8 +132,12 @@ public class TestMasterFailoverWithProcedures {
     HTableDescriptor htd = MasterProcedureTestingUtility.createHTD(TableName.valueOf("mtb"), "f");
     HRegionInfo[] regions = ModifyRegionUtils.createHRegionInfos(htd, null);
     LOG.debug("submit proc");
-    getMasterProcedureExecutor().submitProcedure(
-      new CreateTableProcedure(getMasterProcedureExecutor().getEnvironment(), htd, regions));
+    try {
+      getMasterProcedureExecutor().submitProcedure(
+        new CreateTableProcedure(getMasterProcedureExecutor().getEnvironment(), htd, regions));
+    } catch (Exception ex) {
+      // expected
+    }
     LOG.debug("wait master store abort");
     masterStoreAbort.await();
 
@@ -139,9 +148,14 @@ public class TestMasterFailoverWithProcedures {
 
     // wait the store in here to abort (the test will fail due to timeout if it doesn't)
     LOG.debug("wait the store to abort");
-    backupStore3.getStoreTracker().setDeleted(1, false);
-    backupStore3.delete(1);
+    try {
+      backupStore3.delete(1);
+    } catch (Exception ex) {
+      // expected
+    }
     backupStore3Abort.await();
+    backupStore3.stop(false);
+    bootstrapTable.stopAndWait();
   }
 
   // ==========================================================================

@@ -32,6 +32,8 @@ import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.metrics.ScanMetrics;
 import org.apache.hadoop.hbase.regionserver.HRegion;
+import org.apache.hadoop.hbase.regionserver.NoLimitScannerContext;
+import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
 import org.mortbay.log.Log;
 
@@ -42,20 +44,33 @@ import org.mortbay.log.Log;
 @InterfaceAudience.Private
 public class ClientSideRegionScanner extends AbstractClientScanner {
 
-  private HRegion region;
-  RegionScanner scanner;
+  private final Region region;
+  private final boolean closeRegion; // whether to close the region at the end
+  private RegionScanner scanner;
   List<Cell> values;
 
   public ClientSideRegionScanner(Configuration conf, FileSystem fs,
       Path rootDir, HTableDescriptor htd, HRegionInfo hri, Scan scan, ScanMetrics scanMetrics)
           throws IOException {
 
+    // open region from the snapshot directory
+    this.region = HRegion.openHRegion(conf, fs, rootDir, hri, htd, null, null, null);
+    this.closeRegion = true;
+
     // region is immutable, set isolation level
     scan.setIsolationLevel(IsolationLevel.READ_UNCOMMITTED);
 
-    // open region from the snapshot directory
-    this.region = HRegion.openHRegion(conf, fs, rootDir, hri, htd, null, null, null);
+    init(this.region, scan, scanMetrics);
+  }
 
+  @InterfaceAudience.Private
+  public ClientSideRegionScanner(Region region, Scan scan) throws IOException {
+    this.region = region;
+    this.closeRegion = false;
+    init(region, scan, null);
+  }
+
+  private void init(Region region, Scan scan, ScanMetrics scanMetrics) throws IOException {
     // create an internal region scanner
     this.scanner = region.getScanner(scan);
     values = new ArrayList<Cell>();
@@ -65,7 +80,6 @@ public class ClientSideRegionScanner extends AbstractClientScanner {
     } else {
       this.scanMetrics = scanMetrics;
     }
-    region.startRegionOperation();
   }
 
   @Override
@@ -94,16 +108,15 @@ public class ClientSideRegionScanner extends AbstractClientScanner {
     if (this.scanner != null) {
       try {
         this.scanner.close();
-        this.scanner = null;
       } catch (IOException ex) {
         Log.warn("Exception while closing scanner", ex);
       }
     }
-    if (this.region != null) {
+    if (this.closeRegion && this.region != null) {
       try {
-        this.region.closeRegionOperation();
-        this.region.close(true);
-        this.region = null;
+        if (this.closeRegion) {
+          ((HRegion)this.region).close(true);
+        }
       } catch (IOException ex) {
         Log.warn("Exception while closing region", ex);
       }

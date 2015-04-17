@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentMap;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
@@ -34,7 +35,8 @@ import org.apache.hadoop.hbase.ipc.RpcServerInterface;
 import org.apache.hadoop.hbase.master.TableLockManager;
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.RegionStateTransition.TransitionCode;
 import org.apache.hadoop.hbase.quotas.RegionServerQuotaManager;
-import org.apache.hadoop.hbase.wal.WAL;
+import org.apache.hadoop.hbase.region.RegionServices;
+import org.apache.hadoop.hbase.wal.WALServices;
 import org.apache.zookeeper.KeeperException;
 
 import com.google.protobuf.Service;
@@ -44,29 +46,25 @@ import com.google.protobuf.Service;
  */
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
 @InterfaceStability.Evolving
-public interface RegionServerServices extends OnlineRegions, FavoredNodesForRegion {
+public interface RegionServerServices
+  extends RegionServices, WALServices, FavoredNodesForRegion, Server {
+
+  // TODO: Implementation note:
+  // Currently RegionServerServices consists of services related to hosting regions and other RS
+  // related things like RPC. Region related hosting services should be kept in RegionServices while
+  // RS specific services should be kept here. Ideally, HRegion should not know about
+  // RegionServerServices, but RegionServices
+
   /**
    * @return True if this regionserver is stopping.
    */
+  @Override
   boolean isStopping();
-
-  /** @return the WAL for a particular region. Pass null for getting the
-   * default (common) WAL */
-  WAL getWAL(HRegionInfo regionInfo) throws IOException;
-
-  /**
-   * @return Implementation of {@link CompactionRequestor} or null.
-   */
-  CompactionRequestor getCompactionRequester();
-
-  /**
-   * @return Implementation of {@link FlushRequester} or null.
-   */
-  FlushRequester getFlushRequester();
 
   /**
    * @return the RegionServerAccounting for this Region Server
    */
+  @Override
   RegionServerAccounting getRegionServerAccounting();
 
   /**
@@ -113,6 +111,7 @@ public interface RegionServerServices extends OnlineRegions, FavoredNodesForRegi
   /**
    * @return Return the FileSystem object used by the regionserver
    */
+  @Override
   FileSystem getFileSystem();
 
   /**
@@ -128,12 +127,14 @@ public interface RegionServerServices extends OnlineRegions, FavoredNodesForRegi
   /**
    * @return set of recovering regions on the hosting region server
    */
+  @Override
   Map<String, Region> getRecoveringRegions();
 
   /**
    * Only required for "old" log replay; if it's removed, remove this.
    * @return The RegionServer's NonceManager
    */
+  @Override
   public ServerNonceManager getNonceManager();
 
   /**
@@ -153,6 +154,7 @@ public interface RegionServerServices extends OnlineRegions, FavoredNodesForRegi
   /**
    * @return heap memory manager instance
    */
+  @Override
   HeapMemoryManager getHeapMemoryManager();
 
   /**

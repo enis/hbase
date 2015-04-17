@@ -105,6 +105,7 @@ import org.apache.hadoop.hbase.regionserver.RegionServerServices;
 import org.apache.hadoop.hbase.regionserver.ServerNonceManager;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.wal.WAL;
+import org.apache.hadoop.hbase.wal.WALFactory;
 import org.apache.hadoop.hbase.zookeeper.MetaTableLocator;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 import org.apache.zookeeper.KeeperException;
@@ -330,6 +331,7 @@ ClientProtos.ClientService.BlockingInterface, RegionServerServices {
     return new NullTableLockManager();
   }
 
+  @Override
   public RegionServerQuotaManager getRegionServerQuotaManager() {
     return null;
   }
@@ -638,5 +640,17 @@ ClientProtos.ClientService.BlockingInterface, RegionServerServices {
   @Override
   public double getCompactionPressure() {
     return 0;
+  }
+
+  @Override
+  public WALFactory getWALFactory() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public void requestRollAll() {
+    // TODO Auto-generated method stub
+
   }
 }
