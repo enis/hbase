@@ -27,9 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.procedure2.Procedure;
-import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.procedure2.ProcedureYieldException;
 import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
 
@@ -42,11 +40,11 @@ public class ProcedureStoreTest {
   private HBaseTestingUtility util = new HBaseTestingUtility();
 
   public ProcedureStoreTest() throws Exception {
-
     util.startMiniCluster();
-    util.getConfiguration().setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 1024 * 1024 * 4);
+    //util.getConfiguration().setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 1024 * 1024 * 4);
     ProcedureExecutor executor = util.getMiniHBaseCluster().getMaster().getMasterProcedureExecutor();
     store = executor.getStore();
+
     procIds = new AtomicLong(0);
     numProcs = 1000000;
   }
@@ -91,6 +89,10 @@ public class ProcedureStoreTest {
   }
 
   class Worker implements Runnable {
+    final long start;
+    public Worker(long start) {
+      this.start = start;
+    }
     @Override
     public void run() {
       while (true) {
@@ -104,14 +106,15 @@ public class ProcedureStoreTest {
           proc.setProcId(procId);
           store.insert(proc, null);
 
-          // TODO: delete
+          store.delete(procId);
 
           if (procId % 10000 == 0) {
-            System.out.println(procId);
+            long ms = System.currentTimeMillis() - start;
+            System.out.println("Wrote " + procId + " procedures in " + ms + " ms");
           }
         } catch (Throwable t) {
           t.printStackTrace();
-          throw t;
+          //throw t;
         }
       }
     }
@@ -122,13 +125,13 @@ public class ProcedureStoreTest {
   }
 
   private void run() throws InterruptedException {
-    int numThreads = 50;
+    int numThreads = 10;
 
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
     long start = System.currentTimeMillis();
     for (int i = 0; i < numThreads; i++) {
-      executor.submit(new Worker());
+      executor.submit(new Worker(start));
     }
     executor.shutdown();
     executor.awaitTermination(600, TimeUnit.SECONDS);

@@ -110,6 +110,7 @@ import org.apache.hadoop.hbase.procedure.flush.MasterFlushTableProcedureManager;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
 import org.apache.hadoop.hbase.procedure2.store.RegionProcedureStore;
+import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.RegionServerInfo;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
 import org.apache.hadoop.hbase.quotas.MasterQuotaManager;
@@ -1091,7 +1092,9 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     final Path logDir = new Path(fileSystemManager.getRootDir(),
         MasterProcedureConstants.MASTER_PROCEDURE_LOGDIR);
 
-    procedureStore = new RegionProcedureStore(bootstrapTableService.getConnection());
+//    procedureStore = new RegionProcedureStore(bootstrapTableService.getConnection());
+    procedureStore = new WALProcedureStore(conf, fileSystemManager.getFileSystem(), logDir,
+              new MasterProcedureEnv.WALStoreLeaseRecovery(this));
     procedureStore.registerListener(new MasterProcedureEnv.MasterProcedureStoreListener(this));
     procedureExecutor = new ProcedureExecutor(conf, procEnv, procedureStore,
         procEnv.getProcedureQueue());
