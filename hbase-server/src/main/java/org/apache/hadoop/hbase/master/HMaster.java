@@ -1088,12 +1088,10 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
 
   private void startProcedureExecutor() throws IOException {
     final MasterProcedureEnv procEnv = new MasterProcedureEnv(this);
-    final Path logDir = new Path(fileSystemManager.getRootDir(),
-        MasterProcedureConstants.MASTER_PROCEDURE_LOGDIR);
 
     procedureStore = new RegionProcedureStore(bootstrapTableService.getConnection());
     procedureStore.registerListener(new MasterProcedureEnv.MasterProcedureStoreListener(this));
-    procedureExecutor = new ProcedureExecutor(conf, procEnv, procedureStore,
+    procedureExecutor = new ProcedureExecutor<MasterProcedureEnv>(conf, procEnv, procedureStore,
         procEnv.getProcedureQueue());
 
     final int numThreads = conf.getInt(MasterProcedureConstants.MASTER_PROCEDURE_THREADS,
