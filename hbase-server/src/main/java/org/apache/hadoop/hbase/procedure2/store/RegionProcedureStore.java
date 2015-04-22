@@ -39,6 +39,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
@@ -247,6 +248,11 @@ public class RegionProcedureStore implements ProcedureStore {
 
     Put put = new Put(Bytes.toBytes(proc.getProcId()));
     put.addImmutable(FAMILY, QUALIFIER, out.toByteArray());
+
+    // TODO: We do not have FSYNC WAL implemented yet (it does hflush). Still specify it so that
+    // once we have it implemented, we start using it.
+    put.setDurability(Durability.FSYNC_WAL);
+
     return put;
   }
 

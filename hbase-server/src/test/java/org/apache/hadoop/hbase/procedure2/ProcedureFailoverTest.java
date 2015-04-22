@@ -27,12 +27,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.procedure2.Procedure;
-import org.apache.hadoop.hbase.procedure2.ProcedureYieldException;
+import org.apache.hadoop.hbase.MiniHBaseCluster;
+import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
 
-public class ProcedureStoreTest {
+public class ProcedureFailoverTest {
 
   private final int numProcs;
 
@@ -40,15 +39,14 @@ public class ProcedureStoreTest {
   private final AtomicLong procIds;
   private HBaseTestingUtility util = new HBaseTestingUtility();
 
-  public ProcedureStoreTest() throws Exception {
-    util.getConfiguration().setInt(HConstants.REGION_SERVER_HANDLER_COUNT, 50);
+  public ProcedureFailoverTest() throws Exception {
     util.startMiniCluster();
     //util.getConfiguration().setLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE, 1024 * 1024 * 4);
     ProcedureExecutor executor = util.getMiniHBaseCluster().getMaster().getMasterProcedureExecutor();
     store = executor.getStore();
 
     procIds = new AtomicLong(0);
-    numProcs = 100000;
+    numProcs = 500000;
   }
 
   public static class DummyProcedure extends Procedure {
@@ -126,8 +124,8 @@ public class ProcedureStoreTest {
     util.shutdownMiniCluster();
   }
 
-  private void run() throws InterruptedException {
-    int numThreads = 3;
+  private void run() throws InterruptedException, IOException {
+    int numThreads = 10;
 
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
@@ -137,15 +135,29 @@ public class ProcedureStoreTest {
     }
     executor.shutdown();
     executor.awaitTermination(600, TimeUnit.SECONDS);
+
+    // abort
+    System.out.println("Aborting master");
+    MiniHBaseCluster cluster = util.getMiniHBaseCluster();
+    ServerName server = cluster.getMaster().getServerName();
+    cluster.abortMaster(0);
+    cluster.waitForMasterToStop(server, 60000);
+
+    // restart
+    System.out.println("Restarting master");
+    cluster.startMaster();
+    cluster.waitForActiveAndReadyMaster();
+
     long ms = System.currentTimeMillis() - start;
 
     System.out.println("Wrote " + numProcs + " procedures in " + ms + " ms");
   }
 
   public static void main(String[] args) throws Exception {
-    ProcedureStoreTest test = new ProcedureStoreTest();
+    ProcedureFailoverTest test = new ProcedureFailoverTest();
     test.run();
     test.stop();
   }
+
 
 }

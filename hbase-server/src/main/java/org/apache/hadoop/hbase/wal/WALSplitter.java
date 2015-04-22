@@ -70,7 +70,6 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.ConnectionUtils;
 import org.apache.hadoop.hbase.client.Delete;
@@ -280,6 +279,7 @@ public class WALSplitter {
     boolean progress_failed = false;
     int editsCount = 0;
     int editsSkipped = 0;
+    long start = System.nanoTime();
 
     status =
         TaskMonitor.get().createStatus(
@@ -391,10 +391,13 @@ public class WALSplitter {
           progress_failed = outputSink.finishWritingAndClose() == null;
         }
       } finally {
+        long end = System.nanoTime();
+        long elapsedMs = TimeUnit.MILLISECONDS.convert(end - start, TimeUnit.NANOSECONDS);
         String msg =
             "Processed " + editsCount + " edits across " + outputSink.getNumberOfRecoveredRegions()
                 + " regions; edits skipped=" + editsSkipped + "; log file=" + logPath +
                 ", length=" + logfile.getLen() + // See if length got updated post lease recovery
+                ", in ms=" + elapsedMs +
                 ", corrupted=" + isCorrupted + ", progress failed=" + progress_failed;
         LOG.info(msg);
         status.markComplete(msg);

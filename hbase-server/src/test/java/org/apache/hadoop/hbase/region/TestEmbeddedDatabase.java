@@ -43,6 +43,7 @@ import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Waiter.Predicate;
@@ -373,4 +374,38 @@ public class TestEmbeddedDatabase {
     }
   }
 
+  /**
+   * Tests a failover of the database.
+   */
+  @Test
+  public void testFailover() throws IOException {
+    // write some data
+    readWrite("hbase:testFailover");
+
+    LOG.info("ABORTING MASTER");
+    // abort the abortable (master)
+    MiniHBaseCluster cluster = util.getMiniHBaseCluster();
+    ServerName server = cluster.getMaster().getServerName();
+    cluster.abortMaster(0);
+    cluster.waitForMasterToStop(server, 60000);
+    // this stop will trigger abort code path since abortable is aborted
+    LOG.info("ABORTING EmbeddedDB");
+    db.stopAndWait();
+
+
+    // start master again
+    LOG.info("STARTING MASTER");
+    cluster.startMaster();
+    cluster.waitForActiveAndReadyMaster();
+    master = util.getMiniHBaseCluster().hbaseCluster.getActiveMaster();
+
+    db = new EmbeddedDatabase(util.getConfiguration(),
+      createServerName(), master, master, master, rootDir);
+    db.startAndWait();
+
+    try (Connection connection = db.createConnection();
+        Table table = connection.getTable(TableName.valueOf("hbase:testFailover"))) {
+      util.verifyNumericRows(table, FAMILY, 0, 200, 0);
+    }
+  }
 }

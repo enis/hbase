@@ -291,7 +291,7 @@ public class HRegionServer extends HasThread implements
 
   // Go down hard. Used if file system becomes unavailable and also in
   // debugging and unit tests.
-  private volatile boolean abortRequested;
+  protected volatile boolean abortRequested;
 
   ConcurrentMap<String, Integer> rowlocks = new ConcurrentHashMap<String, Integer>();
 

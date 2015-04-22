@@ -221,7 +221,7 @@ public class EmbeddedDatabase extends AbstractService implements
     // In cases EmbeddedDatabase is run inside a region server, we can share some of the services
     // from the RS. This is done through using passed regionServerServices. We will reuse
     // MemstoreFlusher and CompactSplitThread from the passed one instead of spinning one of our own
-    // However, we have our own WAL, LogRoller, and cleanup threads.
+    // However, we have our own WAL, LogRoller, and cleanup threads through WALContainer.
     this.regionServerServices = regionServerServices;
   }
 
@@ -1629,7 +1629,8 @@ public class EmbeddedDatabase extends AbstractService implements
     @Override
     protected void doStop() {
       // sync for now
-      closeAllRegions(false);
+      boolean abort = abortable != null ? abortable.isAborted() : false;
+      closeAllRegions(abort);
 
       notifyStopped();
     }

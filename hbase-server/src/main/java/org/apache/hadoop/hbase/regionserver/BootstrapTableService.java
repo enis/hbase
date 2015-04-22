@@ -44,7 +44,9 @@ import com.google.common.util.concurrent.AbstractService;
  *  - Only 1 region
  *  - Not assigned through regular assignment, independent of meta of other tables
  *  - Hosted in only 1 server (typically master)
- *  - Not visible through regular means
+ *  - Not visible through regular means.
+ *
+ * Bootstrap tables are pre defined.
  */
 @InterfaceAudience.Private
 public class BootstrapTableService extends AbstractService {

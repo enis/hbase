@@ -110,7 +110,6 @@ import org.apache.hadoop.hbase.procedure.flush.MasterFlushTableProcedureManager;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
 import org.apache.hadoop.hbase.procedure2.store.RegionProcedureStore;
-import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.RegionServerInfo;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
 import org.apache.hadoop.hbase.quotas.MasterQuotaManager;
@@ -1092,9 +1091,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     final Path logDir = new Path(fileSystemManager.getRootDir(),
         MasterProcedureConstants.MASTER_PROCEDURE_LOGDIR);
 
-//    procedureStore = new RegionProcedureStore(bootstrapTableService.getConnection());
-    procedureStore = new WALProcedureStore(conf, fileSystemManager.getFileSystem(), logDir,
-              new MasterProcedureEnv.WALStoreLeaseRecovery(this));
+    procedureStore = new RegionProcedureStore(bootstrapTableService.getConnection());
     procedureStore.registerListener(new MasterProcedureEnv.MasterProcedureStoreListener(this));
     procedureExecutor = new ProcedureExecutor(conf, procEnv, procedureStore,
         procEnv.getProcedureQueue());
@@ -1104,6 +1101,10 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
           MasterProcedureConstants.DEFAULT_MIN_MASTER_PROCEDURE_THREADS));
     procedureStore.start(numThreads);
     procedureExecutor.start(numThreads);
+  }
+
+  public BootstrapTableService getBootstrapTableService() {
+    return bootstrapTableService;
   }
 
   private void stopProcedureExecutor() {
@@ -1941,6 +1942,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     if (isAborted() || isStopped()) {
       return;
     }
+    this.abortRequested = true;
     if (cpHost != null) {
       // HBASE-4014: dump a list of loaded coprocessors.
       LOG.fatal("Master server abort: loaded coprocessors are: " +
