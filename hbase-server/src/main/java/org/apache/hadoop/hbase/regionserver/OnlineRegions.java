@@ -19,6 +19,7 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -66,4 +67,12 @@ public interface OnlineRegions {
     * @throws java.io.IOException
     */
    List<Region> getOnlineRegions(TableName tableName) throws IOException;
+
+   /**
+    * Get all online regions. This may not be a clone of the list. Returned list should be treated
+    * carefully.
+    * @return List of Region
+    * @throws java.io.IOException
+    */
+   Collection<Region> getOnlineRegions();
 }

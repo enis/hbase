@@ -20,43 +20,33 @@ package org.apache.hadoop.hbase.procedure2.store;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.hadoop.hbase.procedure2.Procedure;
+
+import com.google.common.collect.Lists;
 
 /**
  * In memory store for testing
  */
-public class InMemoryProcedureStore implements ProcedureStore {
-
-  private final CopyOnWriteArrayList<ProcedureStoreListener> listeners =
-      new CopyOnWriteArrayList<ProcedureStoreListener>();
+public class InMemoryProcedureStore extends ProcedureStoreBase {
 
   private Map<Long, Procedure> procedures = new ConcurrentHashMap<>();
 
   @Override
-  public void registerListener(ProcedureStoreListener listener) {
-    listeners.add(listener);
-  }
-
-  @Override
-  public boolean unregisterListener(ProcedureStoreListener listener) {
-    return listeners.remove(listener);
-  }
-
-  @Override
   public void start(int numThreads) throws IOException {
+    if (running.getAndSet(true)) {
+      return;
+    }
   }
 
   @Override
   public void stop(boolean abort) {
-  }
-
-  @Override
-  public boolean isRunning() {
-    return true;
+    if (!running.getAndSet(false)) {
+      return;
+    }
   }
 
   @Override
@@ -70,23 +60,42 @@ public class InMemoryProcedureStore implements ProcedureStore {
 
   @Override
   public Iterator<Procedure> load() throws IOException {
-    return procedures.values().iterator();
+    // clone on the way out as well so that originals don't change
+    List<Procedure> list = Lists.newArrayList();
+    for (Procedure p : procedures.values()) {
+      list.add(cloneProc(p));
+    }
+    return list.iterator();
   }
 
   @Override
   public void insert(Procedure proc, Procedure[] subprocs) {
-    procedures.put(proc.getProcId(), proc);
+    procedures.put(proc.getProcId(), cloneProc(proc));
     if (subprocs == null) {
       return;
     }
     for (Procedure p : subprocs) {
-      procedures.put(p.getProcId(), p);
+      procedures.put(p.getProcId(), cloneProc(p));
+    }
+  }
+
+  /**
+   * Clones the proc state so that further changes to the in memory proc are not reflected in the
+   * store
+   * @param proc
+   * @return
+   */
+  private Procedure cloneProc(Procedure proc) {
+    try {
+      return Procedure.convert(Procedure.convert(proc));
+    } catch (Exception ex) {
+      throw new RuntimeException(ex); // should not happen
     }
   }
 
   @Override
   public void update(Procedure proc) {
-    procedures.put(proc.getProcId(), proc);
+    procedures.put(proc.getProcId(), cloneProc(proc));
   }
 
   @Override

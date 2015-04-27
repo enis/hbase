@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.region;
 
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -38,10 +40,13 @@ import org.apache.commons.lang.math.RandomUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
@@ -57,10 +62,13 @@ import org.apache.hadoop.hbase.regionserver.Region;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.FSUtils;
+import org.apache.hadoop.hbase.util.HFileArchiveUtil;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.wal.WAL;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -71,15 +79,13 @@ public class TestEmbeddedDatabase {
 
   private static final Log LOG = LogFactory.getLog(TestEmbeddedDatabase.class);
 
-  // test WALs are deleted
-  // test files are deleted
-
   private static HBaseTestingUtility util;
 
   private EmbeddedDatabase db;
   private ServerName serverName;
   private Path rootDir;
   private HMaster master;
+  private FileSystem fs;
 
   private static final byte[] FAMILY = Bytes.toBytes("fam");
 
@@ -103,13 +109,14 @@ public class TestEmbeddedDatabase {
 
   @Before
   public void setUp() throws IOException {
+    fs = util.getTestFileSystem();
     serverName = createServerName();
     rootDir = new Path(util.getDataTestDirOnTestFS("embeddeddb"), UUID.randomUUID().toString());
 
     master = util.getMiniHBaseCluster().hbaseCluster.getActiveMaster();
 
     db = new EmbeddedDatabase(util.getConfiguration(), serverName,
-      master, master, master, rootDir);
+      master, master, rootDir);
 
     db.startAndWait();
   }
@@ -192,7 +199,7 @@ public class TestEmbeddedDatabase {
 
     LOG.info("Opening another embedded db");
     EmbeddedDatabase db1 = new EmbeddedDatabase(util.getConfiguration(),
-      createServerName(), master, master, master, rootDir);
+      createServerName(), master, master, rootDir);
     db1.startAndWait();
 
     try (Connection connection = db1.createConnection();
@@ -208,6 +215,10 @@ public class TestEmbeddedDatabase {
     db1.stopAndWait();
   }
 
+  /**
+   * Test fencing mechanism of the Embedded DB.
+   * @throws IOException
+   */
   @Test
   public void testFencing() throws IOException {
     LOG.info("Writing some data");
@@ -216,13 +227,13 @@ public class TestEmbeddedDatabase {
     db.stopAndWait();
     LOG.info("Opening embedded db");
     db = new EmbeddedDatabase(util.getConfiguration(),
-      createServerName(), null, null, master, rootDir); // pass in null as abortable so that mini
+      createServerName(), null, master, rootDir); // pass in null as abortable so that mini
                                                         // cluster is not aborted
     db.startAndWait();
 
     LOG.info("Opening another embedded db");
     EmbeddedDatabase db1 = new EmbeddedDatabase(util.getConfiguration(),
-      createServerName(), master, master, master, rootDir);
+      createServerName(), master, master, rootDir);
     db1.startAndWait();
 
     // ensure that we cannot write to db anymore. It is fenced.
@@ -263,7 +274,7 @@ public class TestEmbeddedDatabase {
   private void reopen(Configuration conf) throws IOException {
     db.stopAndWait();
     db = new EmbeddedDatabase(conf,
-      createServerName(), master, master, master, rootDir);
+      createServerName(), master, master, rootDir);
     db.startAndWait();
   }
 
@@ -400,12 +411,85 @@ public class TestEmbeddedDatabase {
     master = util.getMiniHBaseCluster().hbaseCluster.getActiveMaster();
 
     db = new EmbeddedDatabase(util.getConfiguration(),
-      createServerName(), master, master, master, rootDir);
+      createServerName(), master, master, rootDir);
     db.startAndWait();
 
     try (Connection connection = db.createConnection();
         Table table = connection.getTable(TableName.valueOf("hbase:testFailover"))) {
       util.verifyNumericRows(table, FAMILY, 0, 200, 0);
     }
+  }
+
+  @Test
+  public void testHFilesAreDeletedAfterCompaction() throws IOException {
+    // perform a compaction.
+    testCompactions();
+    TableName tableName = TableName.valueOf("hbase:testCompactions");
+
+    try (Connection connection = db.createConnection();
+        Table table = connection.getTable(tableName)) {
+
+      Region region = ((EmbeddedTable)table).getRegion();
+      HRegionInfo regionInfo = region.getRegionInfo();
+
+      Path archiveDir = HFileArchiveUtil.getArchivePath(db.getConfiguration());
+      Path tableDir = FSUtils.getTableDir(rootDir, tableName);
+      Path storeArchiveDir = HFileArchiveUtil.getStoreArchivePath(
+        db.getConfiguration(), regionInfo, tableDir, FAMILY);
+
+      LOG.info("Archive dir=" + archiveDir);
+      LOG.info("Store archive dir=" + storeArchiveDir);
+
+      // check whether we have any files in the store archive directory.
+      Assert.assertFalse(fs.exists(storeArchiveDir));
+
+      // check whether we have any files in archive directory.
+      Assert.assertFalse(fs.exists(archiveDir));
+    }
+  }
+
+  @Test
+  public void testWALsAreDeletedAfterWALRoll() throws Exception {
+    // do a WAL roll
+    testWALRolling();
+    assertNoWALFilesArchived();
+  }
+
+  @Test
+  public void testWALsAreDeletedAfterWALSplit() throws IOException {
+    // do a failover, triggering a WAL split
+    testFailover();
+    assertNoWALFilesArchived();
+  }
+
+  private void assertNoWALFilesArchived() throws FileNotFoundException, IOException {
+    Path walArchiveDir = new Path(rootDir, HConstants.HREGION_OLDLOGDIR_NAME);
+
+    LOG.info("WAL archive dir=" + walArchiveDir);
+    RemoteIterator<?> it = fs.listFiles(walArchiveDir, true);
+    assertFalse(it.hasNext()); // assert empty results
+  }
+
+  @Test
+  public void testPeriodicFlush() throws IOException {
+    Configuration conf = new Configuration(util.getConfiguration());
+    conf.setInt(HRegion.MEMSTORE_PERIODIC_FLUSH_INTERVAL, 1000);
+    // reopen
+    reopen(conf);
+
+    readWrite("hbase:testPeriodicFlush");
+
+    // flush is requested with a delay of 3s - 23s, hard coded
+    util.waitFor(40000, new Predicate<IOException>() {
+      @Override
+      public boolean evaluate() throws IOException {
+        try (Connection connection = db.createConnection();
+            Table table = connection.getTable(TableName.valueOf("hbase:testPeriodicFlush"))) {
+          Region region = ((EmbeddedTable)table).getRegion();
+          LOG.info("numStoreFiles=" + region.getStore(FAMILY).getStorefilesCount());
+          return region.getStore(FAMILY).getStorefilesCount() >= 1;
+        }
+      }
+    });
   }
 }

@@ -72,6 +72,7 @@ import org.apache.hadoop.hbase.TableNotDisabledException;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.UnknownRegionException;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.RegionReplicaUtil;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.TableState;
@@ -616,7 +617,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     this.masterActiveTime = System.currentTimeMillis();
 
     // Start booststrap table service to serve small persisted data
-    bootstrapTableService = new BootstrapTableService(conf, serverName, this, this, this);
+    bootstrapTableService = new BootstrapTableService(conf, serverName, this, this);
     bootstrapTableService.startAndWait();
 
     // TODO: Do this using Dependency Injection, using PicoContainer, Guice or Spring.
@@ -1112,6 +1113,15 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
 
     if (procedureStore != null) {
       procedureStore.stop(isAborted());
+
+      try {
+        Connection connection = ((RegionProcedureStore)procedureStore).getConnection();
+        if (connection != null) {
+          connection.close();
+        }
+      } catch (IOException e) {
+        LOG.warn("Received IOException closing the connection", e);
+      }
     }
 
     if (bootstrapTableService != null) {

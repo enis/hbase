@@ -468,7 +468,7 @@ public class HFileArchiver {
    * @throws IOException if a file cannot be deleted. All files will be attempted to deleted before
    *           throwing the exception, rather than failing at the first file.
    */
-  private static void deleteStoreFilesWithoutArchiving(Collection<StoreFile> compactedFiles)
+  public static void deleteStoreFilesWithoutArchiving(Collection<StoreFile> compactedFiles)
       throws IOException {
     LOG.debug("Deleting store files without archiving.");
     List<IOException> errors = new ArrayList<IOException>(0);

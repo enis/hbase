@@ -93,4 +93,10 @@ public interface CompactionRequestor {
   CompactionRequest requestCompaction(
     final Region r, final Store s, final String why, int pri, CompactionRequest request
   ) throws IOException;
+
+  public void requestSystemCompaction(
+      final Region r, final String why) throws IOException;
+
+  public void requestSystemCompaction(
+      final Region r, final Store s, final String why) throws IOException;
 }

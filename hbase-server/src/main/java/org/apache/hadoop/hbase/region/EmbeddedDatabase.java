@@ -59,6 +59,7 @@ import org.apache.hadoop.hbase.TableDescriptor;
 import org.apache.hadoop.hbase.TableExistsException;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.TableNotFoundException;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Append;
 import org.apache.hadoop.hbase.client.BufferedMutator;
@@ -97,9 +98,11 @@ import org.apache.hadoop.hbase.quotas.QuotaFilter;
 import org.apache.hadoop.hbase.quotas.QuotaRetriever;
 import org.apache.hadoop.hbase.quotas.QuotaSettings;
 import org.apache.hadoop.hbase.regionserver.CompactionRequestor;
+import org.apache.hadoop.hbase.regionserver.DisabledRegionSplitPolicy;
 import org.apache.hadoop.hbase.regionserver.FlushRequester;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.HRegionFileSystem;
+import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.regionserver.HeapMemoryManager;
 import org.apache.hadoop.hbase.regionserver.OnlineRegions;
 import org.apache.hadoop.hbase.regionserver.Region;
@@ -141,25 +144,37 @@ import com.google.protobuf.Descriptors.MethodDescriptor;
  * <p> There is no hbase:meta table for now. Every table is assumed to be a single region, and the
  * region name is pre-determined. Tables cannot be split.
  *
+ * An embedded database has a WAL, can host regions, can do flushes and compactions, log rolling,
+ * and periodic flushes. It uses different services for those sharing as much as possible with RS.
+ * Block cache instance is shared globally in the same JVM (see CacheConfig).
+ *
  * <p>EmbeddedDatabase requires a passed in RegionServerServices for MemstoreFlusher and Compaction
- * threads. This means that is can only run inside a region server for now. We can change it so that
+ * threads. Memory accounting for memstore sizes are also used from the passed RegionServerServices.
+ * This means that this class can only run inside a region server for now. We can change it so that
  * it can be used on its own.
+ *
+ * A WALContainer is used for hosting the WAL. All of the WAL related services and chores
+ * (FSHLog, LogRoller, etc) are encapsulated there.
  *
  * <p>Usage:
  * <pre>
  * EmbeddedDatabase db = new EmbeddedDatabase(..);
- * db.start().get();
- * Connection connection = db.createConnection();
- * Admin admin = db.getAdmin();
- * admin.createTable(myHtd);
- * admin.close();
+ * db.startAndWait()
  *
- * Table table = connection.getTable(TableName.valueOf("myTable"));
- * table.put(myPut);
- * table.get(myGet);
+ * try (Connection connection = db.createConnection();
+ *      Admin admin = connection.getAdmin()) {
+ *   admin.createTable(myHtd);
  *
+ *   try (Table table = connection.getTable(myHtd.getTableName())) {
+ *     table.put(myPut);
+ *     table.get(myGet);
+ *   }
+ * }
+ *
+ * db.stopAndWait();
  * </pre>
  */
+@InterfaceAudience.Private
 public class EmbeddedDatabase extends AbstractService implements
   RegionServices, Abortable, Stoppable, Server {
   private static final Log LOG = LogFactory.getLog(EmbeddedDatabase.class);
@@ -176,26 +191,30 @@ public class EmbeddedDatabase extends AbstractService implements
   private EmbeddedRegionService regionService;
   private WALContainer walContainer;
   private final Abortable abortable;
-  private final Stoppable stoppable;
   private final RegionServerServices regionServerServices;
   private final RetryCounterFactory retryCounterFactory;
   private final UncaughtExceptionHandler uncaughtExceptionHandler;
   private AtomicBoolean running = new AtomicBoolean(true);
 
   public EmbeddedDatabase(Configuration conf, ServerName serverName,
-      Abortable abortable, Stoppable stoppable,
-      RegionServerServices regionServerServices, Path rootDir)
+      Abortable abortable, RegionServerServices regionServerServices, Path rootDir)
       throws IOException {
 
     this.serverName = serverName;
     this.abortable = abortable;
-    this.stoppable = stoppable;
 
     this.conf = new Configuration(conf); // clone the conf since we are going to change it
 
     // pass the procedure directory as the root directory for the WAL
     this.conf.set(HConstants.HBASE_DIR, rootDir.toString());
     this.rootDir = FSUtils.getRootDir(this.conf);
+
+    // Unlike regular case, in embedded mode we cannot have references to hfiles or WALs after
+    // we are done with them (after compaction and WAL delete). So instead of archiving, we should
+    // delete those files instead of renaming to archive directory. EmbeddedDatabase does not have
+    // cleanup chores to clean up afterwards.
+    this.conf.setBoolean("hbase.hfile.delete.without.archiving", true);
+    this.conf.setBoolean("hbase.wal.delete.without.archiving", true);
 
     boolean useHBaseChecksum = this.conf.getBoolean(HConstants.HBASE_CHECKSUM_VERIFICATION, true);
     this.fs = new HFileSystem(this.conf, useHBaseChecksum);
@@ -260,9 +279,8 @@ public class EmbeddedDatabase extends AbstractService implements
     if (walContainer != null) {
       boolean isAborted = abortable != null && abortable.isAborted();
       walContainer.shutdownWAL(!isAborted);
+      walContainer.stopServiceThreads();
     }
-
-    walContainer.stopServiceThreads();
 
     // do not close the FS
 
@@ -272,6 +290,11 @@ public class EmbeddedDatabase extends AbstractService implements
   @Override
   public Configuration getConfiguration() {
     return conf;
+  }
+
+  @VisibleForTesting
+  WALContainer getWalContainer() {
+    return walContainer;
   }
 
   @Override
@@ -411,7 +434,7 @@ public class EmbeddedDatabase extends AbstractService implements
   }
 
   private void startRegionService() {
-    this.regionService = new EmbeddedRegionService(conf, rootDir, regionServerServices,
+    this.regionService = new EmbeddedRegionService(conf, rootDir, this, regionServerServices,
       walContainer, this);
     this.regionService.startAndWait();
   }
@@ -466,6 +489,7 @@ public class EmbeddedDatabase extends AbstractService implements
     }
 
     sanityCheckTableDescriptor(htd);
+    modifyTableDescriptor(htd);
 
     // We create the table directory and region contents in a tmp dir, and move it to the
     // actual location as a final step.
@@ -516,14 +540,23 @@ public class EmbeddedDatabase extends AbstractService implements
     }
   }
 
+  /**
+   * Sanity check table descriptor to run in embedded mode
+   * @param htd
+   */
   private void sanityCheckTableDescriptor(HTableDescriptor htd) {
     if (!htd.getTableName().isSystemTable()) {
       throw new UnsupportedOperationException("All embedded tables should be in the hbase ns");
     }
+  }
 
+  /**
+   * Perform necessary modifications to the TableDescriptor to run in embedded mode
+   * @param htd the table descriptor to modify
+   */
+  private void modifyTableDescriptor(HTableDescriptor htd) {
     // disable splitting for these tables
-    htd.setRegionSplitPolicyClassName(
-      "org.apache.hadoop.hbase.regionserver.DisabledRegionSplitPolicy");
+    htd.setRegionSplitPolicyClassName(DisabledRegionSplitPolicy.class.getName());
   }
 
   @VisibleForTesting
@@ -1597,6 +1630,9 @@ public class EmbeddedDatabase extends AbstractService implements
 
   @VisibleForTesting
   static class EmbeddedRegionService extends AbstractService implements Service, OnlineRegions {
+    // TODO: For hosting regions, we need MemstoreFlusher, PeriodicFlusher and half of CompactSplit
+    // thread. We can extract those out of region server and combine this class with those
+    // so that RS and EmbeddedDatabase shares the same code.
 
     private static final Log LOG = LogFactory.getLog(EmbeddedRegionService.class);
 
@@ -1605,6 +1641,7 @@ public class EmbeddedDatabase extends AbstractService implements
 
     private final Map<String, Region> onlineRegions = new ConcurrentHashMap<>();
 
+    private final EmbeddedDatabase db;
     private final WALServices walServices;
     private final Configuration conf;
     private final Path rootDir;
@@ -1612,10 +1649,11 @@ public class EmbeddedDatabase extends AbstractService implements
     private final RegionServerServices regionServerServices;
 
     public EmbeddedRegionService(Configuration conf, Path rootDir,
-        RegionServerServices regionServerServices, WALServices walServices,
+        EmbeddedDatabase db, RegionServerServices regionServerServices, WALServices walServices,
         Abortable abortable) {
       this.conf = conf;
       this.rootDir = rootDir;
+      this.db = db;
       this.regionServerServices = regionServerServices;
       this.walServices = walServices;
       this.abortable = abortable;
@@ -1623,12 +1661,18 @@ public class EmbeddedDatabase extends AbstractService implements
 
     @Override
     protected void doStart() {
+      if (regionServerServices instanceof HRegionServer) {
+        ((HRegionServer) regionServerServices).addRegionServices(db);
+      }
       notifyStarted();
     }
 
     @Override
     protected void doStop() {
-      // sync for now
+      if (regionServerServices instanceof HRegionServer) {
+        ((HRegionServer) regionServerServices).removeRegionServices(db);
+      }
+
       boolean abort = abortable != null ? abortable.isAborted() : false;
       closeAllRegions(abort);
 
@@ -1680,14 +1724,11 @@ public class EmbeddedDatabase extends AbstractService implements
 
     public synchronized void openRegion(HTableDescriptor htd, HRegionInfo regionInfo)
         throws IOException {
-      // TODO: WAL file cleaning?
-
       if (onlineRegions.containsKey(regionInfo.getEncodedName())) {
         throw new IOException("Cannot open region " + regionInfo.getRegionNameAsString() +
           "  since it is already opened");
       }
 
-      // TODO: periodic flusher, global flusher etc cannot see these regions
       HRegion region = HRegion.openHRegion(rootDir, regionInfo, htd,
         walServices.getWAL(regionInfo), conf, regionServerServices, null);
 
@@ -1724,6 +1765,11 @@ public class EmbeddedDatabase extends AbstractService implements
     public synchronized List<Region> getOnlineRegions(TableName tableName) throws IOException {
       Region region = tableRegions.get(tableName);
       return region == null ? Collections.EMPTY_LIST : Collections.singletonList(region);
+    }
+
+    @Override
+    public Collection<Region> getOnlineRegions() {
+      return onlineRegions.values();
     }
   }
 
@@ -1784,6 +1830,11 @@ public class EmbeddedDatabase extends AbstractService implements
   @Override
   public List<Region> getOnlineRegions(TableName tableName) throws IOException {
     return regionService.getOnlineRegions(tableName);
+  }
+
+  @Override
+  public Collection<Region> getOnlineRegions() {
+    return regionService.getOnlineRegions();
   }
 
   // Below are for implementing Server interface. We should not need these, but they are coming

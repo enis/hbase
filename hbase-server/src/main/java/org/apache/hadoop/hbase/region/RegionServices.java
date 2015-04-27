@@ -22,8 +22,10 @@ import java.util.Map;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hbase.Abortable;
+import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.Stoppable;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.regionserver.CompactionRequestor;
 import org.apache.hadoop.hbase.regionserver.FlushRequester;
 import org.apache.hadoop.hbase.regionserver.HeapMemoryManager;
@@ -35,7 +37,8 @@ import org.apache.hadoop.hbase.regionserver.ServerNonceManager;
 /**
  * Services related to hosting regions.
  */
-@InterfaceAudience.Private
+@InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
+@InterfaceStability.Evolving
 public interface RegionServices extends OnlineRegions, Stoppable, Abortable {
   // TODO: Guava Service?
 
@@ -81,4 +84,6 @@ public interface RegionServices extends OnlineRegions, Stoppable, Abortable {
   /**
    * @return set of recovering regions on the hosting region server
    */
-  Map<String, Region> getRecoveringRegions();}
+  Map<String, Region> getRecoveringRegions();
+
+}

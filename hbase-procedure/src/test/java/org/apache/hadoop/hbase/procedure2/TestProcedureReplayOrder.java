@@ -65,7 +65,7 @@ public class TestProcedureReplayOrder {
 
     logDir = new Path(testDir, "proc-logs");
     procEnv = new TestProcedureEnv();
-    procStore = ProcedureTestingUtility.createInMemoryStore(htu.getConfiguration(), fs, logDir);
+    procStore = ProcedureTestingUtility.createInMemoryStore(htu.getConfiguration());
     procExecutor = new ProcedureExecutor(htu.getConfiguration(), procEnv, procStore);
     procStore.start(24);
     procExecutor.start(1);

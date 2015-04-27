@@ -40,11 +40,11 @@ public class ProcedureTestingUtility {
 
   public static ProcedureStore createStore(final Configuration conf, final FileSystem fs,
       final Path baseDir) throws IOException {
-    return createInMemoryStore(conf, fs, baseDir);
+    return createInMemoryStore(conf);
   }
 
-  public static InMemoryProcedureStore createInMemoryStore(final Configuration conf,
-      final FileSystem fs, final Path logDir) throws IOException {
+  public static InMemoryProcedureStore createInMemoryStore(final Configuration conf)
+      throws IOException {
     return new InMemoryProcedureStore();
   }
 

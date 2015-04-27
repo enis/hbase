@@ -26,9 +26,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
@@ -54,7 +51,7 @@ import org.apache.hadoop.hbase.util.Bytes;
  * The procId is the row key, and the state of the procedure is serialized in info:data column
  */
 @InterfaceAudience.Private
-public class RegionProcedureStore implements ProcedureStore {
+public class RegionProcedureStore extends ProcedureStoreBase {
 
   private static final Log LOG = LogFactory.getLog(RegionProcedureStore.class);
 
@@ -70,10 +67,6 @@ public class RegionProcedureStore implements ProcedureStore {
 
   private Connection connection;
   private Table table;
-  private AtomicBoolean running = new AtomicBoolean();
-
-  private final CopyOnWriteArrayList<ProcedureStoreListener> listeners =
-      new CopyOnWriteArrayList<ProcedureStoreListener>();
 
   public static HTableDescriptor getTableDescriptor() {
     return TABLE_DESCRIPTOR;
@@ -81,17 +74,10 @@ public class RegionProcedureStore implements ProcedureStore {
 
   public RegionProcedureStore(Connection connection) throws IOException {
     this.connection = connection;
-    this.table = connection.getTable(PROCEDURES_TABLE_NAME);
   }
 
-  @Override
-  public void registerListener(ProcedureStoreListener listener) {
-    listeners.add(listener);
-  }
-
-  @Override
-  public boolean unregisterListener(ProcedureStoreListener listener) {
-    return listeners.remove(listener);
+  public Connection getConnection() {
+    return connection;
   }
 
   @Override
@@ -101,10 +87,10 @@ public class RegionProcedureStore implements ProcedureStore {
 
   @Override
   public void start(int numThreads) throws IOException {
-    // TODO: check bootstrap service
     if (running.getAndSet(true)) {
       return;
     }
+    this.table = connection.getTable(PROCEDURES_TABLE_NAME);
   }
 
   @Override
@@ -118,29 +104,18 @@ public class RegionProcedureStore implements ProcedureStore {
       return;
     }
     try {
-      connection.close();
-    } catch (IOException e) {
-      LOG.warn("Received IOException closing the connection", e);
-    }
-  }
-
-  @Override
-  public boolean isRunning() {
-    // TODO: check bootstrap service
-    return running.get();
-  }
-
-  private void sendAbortProcessSignal() {
-    if (!this.listeners.isEmpty()) {
-      for (ProcedureStoreListener listener : this.listeners) {
-        listener.abortProcess();
+      if (table != null) {
+        table.close();
+        table = null;
       }
+    } catch (IOException e) {
+      LOG.warn("Received IOException closing the table", e);
     }
   }
 
   @Override
   public Iterator<Procedure> load() throws IOException {
-    ResultScanner scanner = table.getScanner(new Scan());
+    final ResultScanner scanner = table.getScanner(new Scan());
 
     final Iterator raw = scanner.iterator();
 
@@ -154,6 +129,7 @@ public class RegionProcedureStore implements ProcedureStore {
       public Object next() {
         Result result = (Result) raw.next();
         if (result == null) {
+          scanner.close();
           return null;
         }
         Procedure proc;
@@ -165,6 +141,7 @@ public class RegionProcedureStore implements ProcedureStore {
           if (hasNext()) {
             return next();
           } else {
+            scanner.close();
             return null;
           }
         }

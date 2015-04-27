@@ -208,7 +208,6 @@ public class WALSplitter {
       this.distributedLogReplay = false;
       outputSink = new LogRecoveredEditsOutputSink(controller, entryBuffers, numWriterThreads);
     }
-
   }
 
   /**
@@ -483,13 +482,21 @@ public class WALSplitter {
       }
     }
 
+    boolean deleteWithoutArchiving = conf.getBoolean("hbase.wal.delete.without.archiving", false);
+
     for (Path p : processedLogs) {
       Path newPath = FSHLog.getWALArchivePath(oldLogDir, p);
       if (fs.exists(p)) {
-        if (!FSUtils.renameAndSetModifyTime(fs, p, newPath)) {
-          LOG.warn("Unable to move  " + p + " to " + newPath);
+        if (deleteWithoutArchiving) {
+          if (!FSUtils.delete(fs, p, false)) {
+            LOG.warn("Unable to delete  " + p);
+          }
         } else {
-          LOG.info("Archived processed log " + p + " to " + newPath);
+          if (!FSUtils.renameAndSetModifyTime(fs, p, newPath)) {
+            LOG.warn("Unable to move  " + p + " to " + newPath);
+          } else {
+            LOG.info("Archived processed log " + p + " to " + newPath);
+          }
         }
       }
     }

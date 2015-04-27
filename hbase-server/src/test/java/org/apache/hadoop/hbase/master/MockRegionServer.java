@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.master;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -534,6 +535,12 @@ ClientProtos.ClientService.BlockingInterface, RegionServerServices {
 
   @Override
   public List<Region> getOnlineRegions(TableName tableName) throws IOException {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public Collection<Region> getOnlineRegions() {
     // TODO Auto-generated method stub
     return null;
   }

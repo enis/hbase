@@ -79,6 +79,7 @@ public class HRegionFileSystem {
   private final Configuration conf;
   private final Path tableDir;
   private final FileSystem fs;
+  private final boolean deleteWithoutArchiving;
 
   /**
    * In order to handle NN connectivity hiccups, one need to retry non-idempotent operation at the
@@ -107,6 +108,7 @@ public class HRegionFileSystem {
       DEFAULT_HDFS_CLIENT_RETRIES_NUMBER);
     this.baseSleepBeforeRetries = conf.getInt("hdfs.client.sleep.before.retries",
       DEFAULT_BASE_SLEEP_BEFORE_RETRIES);
+    this.deleteWithoutArchiving = conf.getBoolean("hbase.hfile.delete.without.archiving", false);
  }
 
   /** @return the underlying {@link FileSystem} */
@@ -421,8 +423,12 @@ public class HRegionFileSystem {
    */
   public void removeStoreFiles(final String familyName, final Collection<StoreFile> storeFiles)
       throws IOException {
-    HFileArchiver.archiveStoreFiles(this.conf, this.fs, this.regionInfoForFs,
+    if (deleteWithoutArchiving) {
+      HFileArchiver.deleteStoreFilesWithoutArchiving(storeFiles);
+    } else {
+      HFileArchiver.archiveStoreFiles(this.conf, this.fs, this.regionInfoForFs,
         this.tableDir, Bytes.toBytes(familyName), storeFiles);
+    }
   }
 
   /**

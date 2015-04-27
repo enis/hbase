@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseCommonTestingUtility;
 import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
@@ -38,14 +37,12 @@ import org.apache.hadoop.hbase.util.Threads;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Assert;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @Category({MasterTests.class, SmallTests.class})
 public class TestProcedureRecovery {
@@ -61,7 +58,6 @@ public class TestProcedureRecovery {
   private HBaseCommonTestingUtility htu;
   private FileSystem fs;
   private Path testDir;
-  private Path logDir;
 
   @Before
   public void setUp() throws IOException {
@@ -70,8 +66,7 @@ public class TestProcedureRecovery {
     fs = testDir.getFileSystem(htu.getConfiguration());
     assertTrue(testDir.depth() > 1);
 
-    logDir = new Path(testDir, "proc-logs");
-    procStore = ProcedureTestingUtility.createStore(htu.getConfiguration(), fs, logDir);
+    procStore = ProcedureTestingUtility.createStore(htu.getConfiguration(), fs, null);
     procExecutor = new ProcedureExecutor(htu.getConfiguration(), null, procStore);
     procExecutor.testing = new ProcedureExecutor.Testing();
     procStore.start(PROCEDURE_EXECUTOR_SLOTS);
@@ -83,13 +78,10 @@ public class TestProcedureRecovery {
   public void tearDown() throws IOException {
     procExecutor.stop();
     procStore.stop(false);
-    fs.delete(logDir, true);
   }
 
   private void restart() throws Exception {
-    dumpLogDirState();
     ProcedureTestingUtility.restart(procExecutor);
-    dumpLogDirState();
   }
 
   public static class TestSingleStepProcedure extends SequentialProcedure<Void> {
@@ -239,7 +231,7 @@ public class TestProcedureRecovery {
     ProcedureTestingUtility.assertProcNotFailed(result);
   }
 
-  @Test(timeout=30000)
+  @Test(timeout=300000)
   public void testMultiStepRollbackRecovery() throws Exception {
     // Step 0 - kill
     Procedure proc = new TestMultiStepProcedure();
@@ -467,22 +459,5 @@ public class TestProcedureRecovery {
 
   private void waitProcedure(final long procId) {
     ProcedureTestingUtility.waitProcedure(procExecutor, procId);
-    dumpLogDirState();
-  }
-
-  private void dumpLogDirState() {
-    try {
-      FileStatus[] files = fs.listStatus(logDir);
-      if (files != null && files.length > 0) {
-        for (FileStatus file: files) {
-          assertTrue(file.toString(), file.isFile());
-          LOG.debug("log file " + file.getPath() + " size=" + file.getLen());
-        }
-      } else {
-        LOG.debug("no files under: " + logDir);
-      }
-    } catch (IOException e) {
-      LOG.warn("Unable to dump " + logDir, e);
-    }
   }
 }

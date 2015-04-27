@@ -30,6 +30,7 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.region.RegionServices;
 import org.apache.hadoop.hbase.regionserver.LogRoller;
 import org.apache.hadoop.hbase.regionserver.RegionServerRunningException;
@@ -41,8 +42,9 @@ import com.sun.org.apache.commons.logging.Log;
 import com.sun.org.apache.commons.logging.LogFactory;
 
 /**
- * A concrete implementation of WALServices.
+ * A concrete implementation of WALServices. WALContainer hosts the WALFactory and LogRoller(s).
  */
+@InterfaceAudience.Private
 public class WALContainer implements WALServices {
   private static final Log LOG = LogFactory.getLog(WALContainer.class);
 

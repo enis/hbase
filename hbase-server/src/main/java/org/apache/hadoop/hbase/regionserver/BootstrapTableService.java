@@ -28,7 +28,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.ServerName;
-import org.apache.hadoop.hbase.Stoppable;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
@@ -55,14 +54,11 @@ public class BootstrapTableService extends AbstractService {
   private static String BOOTSTRAP_TABLE_DIR = "bootstrap-tables";
 
   private EmbeddedDatabase db;
-  private Connection connection;
 
   /** We cannot use the region servers onlineRegions since it will make it visible to clients */
 
   public BootstrapTableService(Configuration conf, ServerName serverName,
-      Abortable abortable, Stoppable stoppable,
-      RegionServerServices regionServerServices)
-      throws IOException {
+      Abortable abortable, RegionServerServices regionServerServices) throws IOException {
 
     // TODO: add MonitoredTask
 
@@ -70,8 +66,7 @@ public class BootstrapTableService extends AbstractService {
     Path rootDir = FSUtils.getRootDir(conf);
     rootDir = new Path(rootDir, BOOTSTRAP_TABLE_DIR);
 
-    db = new EmbeddedDatabase(conf, serverName, abortable, stoppable,
-      regionServerServices, rootDir);
+    db = new EmbeddedDatabase(conf, serverName, abortable, regionServerServices, rootDir);
   }
 
   /**
@@ -91,8 +86,9 @@ public class BootstrapTableService extends AbstractService {
       return;
     }
 
-    connection = db.createConnection();
-    try (Admin admin = connection.getAdmin()) {
+
+    try (Connection connection = db.createConnection();
+        Admin admin = connection.getAdmin()) {
       for (HTableDescriptor htd : getBootstrappedTables()) {
         if (!admin.tableExists(htd.getTableName())) {
           admin.createTable(htd);
@@ -109,14 +105,6 @@ public class BootstrapTableService extends AbstractService {
   @Override
   protected void doStop() {
     boolean failed = false;
-    if (connection != null) {
-      try {
-        connection.close();
-      } catch (IOException e) {
-        this.notifyFailed(e);
-        failed = true;
-      }
-    }
     try {
       db.stopAndWait();
     } catch (Exception e) {
@@ -130,8 +118,6 @@ public class BootstrapTableService extends AbstractService {
 
 
   public Connection getConnection() {
-    return connection;
+    return db.createConnection();
   }
-
-
 }

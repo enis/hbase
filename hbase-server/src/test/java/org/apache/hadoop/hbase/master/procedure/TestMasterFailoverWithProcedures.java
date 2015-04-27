@@ -65,7 +65,8 @@ public class TestMasterFailoverWithProcedures {
 
   private static void setupConf(Configuration conf) {
     // we need less number of retries
-    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 1); // this is multiplied by 10
+    conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 10);
+    conf.setInt("hbase.client.serverside.retries.multiplier", 1);
     conf.setLong(HConstants.HBASE_CLIENT_PAUSE, 10);
 
   }
@@ -111,7 +112,7 @@ public class TestMasterFailoverWithProcedures {
     Mockito.doReturn(true).when(backupMaster3).isActiveMaster();
     BootstrapTableService bootstrapTable = new BootstrapTableService(firstMaster.getConfiguration(),
       ServerName.valueOf("localhost", RandomUtils.nextInt(1000), RandomUtils.nextInt(1000)),
-      null, null, null);
+      null, null);
     bootstrapTable.startAndWait();
     final RegionProcedureStore backupStore3 = new RegionProcedureStore(
       bootstrapTable.getConnection());

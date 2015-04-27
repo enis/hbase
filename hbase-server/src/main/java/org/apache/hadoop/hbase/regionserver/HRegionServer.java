@@ -44,6 +44,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -129,6 +130,7 @@ import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.Repor
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.ReportRegionStateTransitionRequest;
 import org.apache.hadoop.hbase.protobuf.generated.RegionServerStatusProtos.ReportRegionStateTransitionResponse;
 import org.apache.hadoop.hbase.quotas.RegionServerQuotaManager;
+import org.apache.hadoop.hbase.region.RegionServices;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionProgress;
 import org.apache.hadoop.hbase.regionserver.handler.CloseMetaHandler;
 import org.apache.hadoop.hbase.regionserver.handler.CloseRegionHandler;
@@ -343,12 +345,12 @@ public class HRegionServer extends HasThread implements
   /*
    * Check for compactions requests.
    */
-  ScheduledChore compactionChecker;
+  CompactionChecker compactionChecker;
 
   /*
    * Check for flushes
    */
-  ScheduledChore periodicFlusher;
+  PeriodicMemstoreFlusher periodicFlusher;
 
   protected final WALContainer walContainer;
 
@@ -588,6 +590,8 @@ public class HRegionServer extends HasThread implements
     putUpWebUI();
     this.walContainer = new WALContainer(this, this, uncaughtExceptionHandler);
     this.choreService = new ChoreService(getServerName().toString());
+
+    initializeFlushCompactionThreads();
   }
 
   protected TableDescriptors getFsTableDescriptors() throws IOException {
@@ -810,7 +814,7 @@ public class HRegionServer extends HasThread implements
     return clusterStatusTracker != null && clusterStatusTracker.isClusterUp();
   }
 
-  private void initializeThreads() throws IOException {
+  private void initializeFlushCompactionThreads() {
     // Cache flushing thread.
     this.cacheFlusher = new MemStoreFlusher(conf, this);
 
@@ -820,8 +824,12 @@ public class HRegionServer extends HasThread implements
     // Background thread to check for compactions; needed if region has not gotten updates
     // in a while. It will take care of not checking too frequently on store-by-store basis.
     this.compactionChecker = new CompactionChecker(this, this.threadWakeFrequency, this);
-    this.periodicFlusher = new PeriodicMemstoreFlusher(this.threadWakeFrequency, this);
-    this.leases = new Leases(this.threadWakeFrequency);
+    this.periodicFlusher = new PeriodicMemstoreFlusher(this.threadWakeFrequency,
+      this.serverName, this);
+  }
+
+  private void initializeThreads() throws IOException {
+        this.leases = new Leases(this.threadWakeFrequency);
 
     // Create the thread to clean the moved regions list
     movedRegionsCleaner = MovedRegionsCleaner.create(this);
@@ -1479,7 +1487,7 @@ public class HRegionServer extends HasThread implements
    * Inner class that runs on a long period checking if regions need compaction.
    */
   private static class CompactionChecker extends ScheduledChore {
-    private final HRegionServer instance;
+    private final List<RegionServices> regionServices = new CopyOnWriteArrayList<>();
     private final int majorCompactPriority;
     private final static int DEFAULT_PRIORITY = Integer.MAX_VALUE;
     private long iteration = 0;
@@ -1487,44 +1495,52 @@ public class HRegionServer extends HasThread implements
     CompactionChecker(final HRegionServer h, final int sleepTime,
         final Stoppable stopper) {
       super("CompactionChecker", stopper, sleepTime);
-      this.instance = h;
+      regionServices.add(h);
       LOG.info(this.getName() + " runs every " + StringUtils.formatTime(sleepTime));
 
       /* MajorCompactPriority is configurable.
        * If not set, the compaction will use default priority.
        */
-      this.majorCompactPriority = this.instance.conf.
-        getInt("hbase.regionserver.compactionChecker.majorCompactPriority",
-        DEFAULT_PRIORITY);
+      this.majorCompactPriority = h.getConfiguration()
+          .getInt("hbase.regionserver.compactionChecker.majorCompactPriority", DEFAULT_PRIORITY);
+    }
+
+    private void addRegionServices(RegionServices rs) {
+      this.regionServices.add(rs);
+    }
+    private void removeRegionServices(RegionServices rs) {
+      this.regionServices.remove(rs);
     }
 
     @Override
     protected void chore() {
-      for (Region r : this.instance.onlineRegions.values()) {
-        if (r == null)
-          continue;
-        for (Store s : r.getStores()) {
-          try {
-            long multiplier = s.getCompactionCheckMultiplier();
-            assert multiplier > 0;
-            if (iteration % multiplier != 0) continue;
-            if (s.needsCompaction()) {
-              // Queue a compaction. Will recognize if major is needed.
-              this.instance.compactSplitThread.requestSystemCompaction(r, s, getName()
+      for (RegionServices rs : regionServices) {
+        for (Region r : rs.getOnlineRegions()) {
+          if (r == null)
+            continue;
+          for (Store s : r.getStores()) {
+            try {
+              long multiplier = s.getCompactionCheckMultiplier();
+              assert multiplier > 0;
+              if (iteration % multiplier != 0) continue;
+              if (s.needsCompaction()) {
+                // Queue a compaction. Will recognize if major is needed.
+                rs.getCompactionRequester().requestSystemCompaction(r, s, getName()
                   + " requests compaction");
-            } else if (s.isMajorCompaction()) {
-              if (majorCompactPriority == DEFAULT_PRIORITY
-                  || majorCompactPriority > ((HRegion)r).getCompactPriority()) {
-                this.instance.compactSplitThread.requestCompaction(r, s, getName()
+              } else if (s.isMajorCompaction()) {
+                if (majorCompactPriority == DEFAULT_PRIORITY
+                    || majorCompactPriority > ((HRegion)r).getCompactPriority()) {
+                  rs.getCompactionRequester().requestCompaction(r, s, getName()
                     + " requests major compaction; use default priority", null);
-              } else {
-                this.instance.compactSplitThread.requestCompaction(r, s, getName()
+                } else {
+                  rs.getCompactionRequester().requestCompaction(r, s, getName()
                     + " requests major compaction; use configured priority",
-                  this.majorCompactPriority, null);
+                    this.majorCompactPriority, null);
+                }
               }
+            } catch (IOException e) {
+              LOG.warn("Failed major compaction check on " + r, e);
             }
-          } catch (IOException e) {
-            LOG.warn("Failed major compaction check on " + r, e);
           }
         }
       }
@@ -1532,30 +1548,64 @@ public class HRegionServer extends HasThread implements
     }
   }
 
+  /**
+   * RegionServer hosts some chores (MemstoreFlusher, periodic flusher, CompactionChecker, etc)
+   * that some other RegionServices may want to share. This method adds the passed RegionServices
+   * to the chores so that the chores also see their regions.
+   * @param rs the region services to send to chore threads
+   */
+  @InterfaceAudience.Private
+  public void addRegionServices(RegionServices rs) {
+    this.periodicFlusher.addRegionServices(rs);
+    this.compactionChecker.addRegionServices(rs);
+  }
+
+  /**
+   * Removed the region services from region servers maintained chores
+   * @param rs the region services to remove from chore threeads
+   */
+  @InterfaceAudience.Private
+  public void removeRegionServices(RegionServices rs) {
+    this.periodicFlusher.removeRegionServices(rs);
+    this.compactionChecker.removeRegionServices(rs);
+  }
+
+  @InterfaceAudience.Private
   static class PeriodicMemstoreFlusher extends ScheduledChore {
-    final HRegionServer server;
+    final List<RegionServices> regionServices = new CopyOnWriteArrayList<>();
     final static int RANGE_OF_DELAY = 20000; //millisec
     final static int MIN_DELAY_TIME = 3000; //millisec
-    public PeriodicMemstoreFlusher(int cacheFlushInterval, final HRegionServer server) {
-      super(server.getServerName() + "-MemstoreFlusherChore", server, cacheFlushInterval);
-      this.server = server;
+    public PeriodicMemstoreFlusher(int cacheFlushInterval, final ServerName serverName,
+        final RegionServices server) {
+      super(serverName + "-MemstoreFlusherChore", server, cacheFlushInterval);
+      regionServices.add(server);
+    }
+
+    public void addRegionServices(RegionServices rs) {
+      this.regionServices.add(rs);
+    }
+
+    public void removeRegionServices(RegionServices rs) {
+      this.regionServices.remove(rs);
     }
 
     @Override
     protected void chore() {
-      for (Region r : this.server.onlineRegions.values()) {
-        if (r == null)
-          continue;
-        if (((HRegion)r).shouldFlush()) {
-          FlushRequester requester = server.getFlushRequester();
-          if (requester != null) {
-            long randomDelay = RandomUtils.nextInt(RANGE_OF_DELAY) + MIN_DELAY_TIME;
-            LOG.info(getName() + " requesting flush for region " +
-              r.getRegionInfo().getRegionNameAsString() + " after a delay of " + randomDelay);
-            //Throttle the flushes by putting a delay. If we don't throttle, and there
-            //is a balanced write-load on the regions in a table, we might end up
-            //overwhelming the filesystem with too many flushes at once.
-            requester.requestDelayedFlush(r, randomDelay, false);
+      for (RegionServices rs : regionServices) {
+        for (Region r : rs.getOnlineRegions()) {
+          if (r == null)
+            continue;
+          if (((HRegion)r).shouldFlush()) {
+            FlushRequester requester = rs.getFlushRequester();
+            if (requester != null) {
+              long randomDelay = RandomUtils.nextInt(RANGE_OF_DELAY) + MIN_DELAY_TIME;
+              LOG.info(getName() + " requesting flush for region " +
+                  r.getRegionInfo().getRegionNameAsString() + " after a delay of " + randomDelay);
+              //Throttle the flushes by putting a delay. If we don't throttle, and there
+              //is a balanced write-load on the regions in a table, we might end up
+              //overwhelming the filesystem with too many flushes at once.
+              requester.requestDelayedFlush(r, randomDelay, false);
+            }
           }
         }
       }
@@ -2599,6 +2649,11 @@ public class HRegionServer extends HasThread implements
      }
      return tableRegions;
    }
+
+  @Override
+  public Collection<Region> getOnlineRegions() {
+    return onlineRegions.values();
+  }
 
   /**
    * Gets the online tables in this RS.
