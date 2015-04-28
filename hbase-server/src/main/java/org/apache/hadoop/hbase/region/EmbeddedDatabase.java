@@ -32,6 +32,7 @@ import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
@@ -1085,8 +1086,14 @@ public class EmbeddedDatabase extends AbstractService implements
     }
 
     @Override
-    public void createTableAsync(HTableDescriptor desc, byte[][] splitKeys) throws IOException {
+    public Future<Void> createTableAsync(HTableDescriptor desc, byte[][] splitKeys)
+        throws IOException {
       throw new UnsupportedOperationException("Only table with 1 region are supported");
+    }
+
+    @Override
+    public Future<Void> deleteTableAsync(TableName tableName) throws IOException {
+      throw new UnsupportedOperationException();
     }
 
     @Override
@@ -1115,7 +1122,7 @@ public class EmbeddedDatabase extends AbstractService implements
     }
 
     @Override
-    public void enableTableAsync(TableName tableName) throws IOException {
+    public Future<Void> enableTableAsync(TableName tableName) throws IOException {
       throw new UnsupportedOperationException();
     }
 
@@ -1130,7 +1137,7 @@ public class EmbeddedDatabase extends AbstractService implements
     }
 
     @Override
-    public void disableTableAsync(TableName tableName) throws IOException {
+    public Future<Void> disableTableAsync(TableName tableName) throws IOException {
       throw new UnsupportedOperationException();
     }
 

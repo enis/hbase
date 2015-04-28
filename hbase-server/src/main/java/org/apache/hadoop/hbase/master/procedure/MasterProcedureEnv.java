@@ -23,6 +23,8 @@ import java.io.IOException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.ipc.RpcServer;
@@ -30,13 +32,38 @@ import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.MasterCoprocessorHost;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.procedure2.store.ProcedureStore;
+import org.apache.hadoop.hbase.procedure2.store.wal.WALProcedureStore;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.security.UserProvider;
+import org.apache.hadoop.hbase.util.CancelableProgressable;
+import org.apache.hadoop.hbase.util.FSUtils;
 
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
 public class MasterProcedureEnv {
   private static final Log LOG = LogFactory.getLog(MasterProcedureEnv.class);
+
+  @InterfaceAudience.Private
+  public static class WALStoreLeaseRecovery implements WALProcedureStore.LeaseRecovery {
+    private final HMaster master;
+
+    public WALStoreLeaseRecovery(final HMaster master) {
+      this.master = master;
+    }
+
+    @Override
+    public void recoverFileLease(final FileSystem fs, final Path path) throws IOException {
+      final Configuration conf = master.getConfiguration();
+      final FSUtils fsUtils = FSUtils.getInstance(fs, conf);
+      fsUtils.recoverFileLease(fs, path, conf, new CancelableProgressable() {
+        @Override
+        public boolean progress() {
+          LOG.debug("Recover Procedure Store log lease: " + path);
+          return master.isActiveMaster();
+        }
+      });
+    }
+  }
 
   @InterfaceAudience.Private
   public static class MasterProcedureStoreListener
