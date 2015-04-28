@@ -1091,7 +1091,11 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
   private void startProcedureExecutor() throws IOException {
     final MasterProcedureEnv procEnv = new MasterProcedureEnv(this);
 
-    procedureStore = new RegionProcedureStore(bootstrapTableService.getConnection());
+    //procedureStore = new RegionProcedureStore(bootstrapTableService.getConnection());
+    Path logDir = new Path(fileSystemManager.getRootDir(), "proc-wals");
+    procedureStore = new WALProcedureStore(conf, fileSystemManager.getFileSystem(), logDir,
+    new MasterProcedureEnv.WALStoreLeaseRecovery(this));
+
     procedureStore.registerListener(new MasterProcedureEnv.MasterProcedureStoreListener(this));
     procedureExecutor = new ProcedureExecutor<MasterProcedureEnv>(conf, procEnv, procedureStore,
         procEnv.getProcedureQueue());
@@ -1099,7 +1103,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     final int numThreads = conf.getInt(MasterProcedureConstants.MASTER_PROCEDURE_THREADS,
         Math.max(Runtime.getRuntime().availableProcessors(),
           MasterProcedureConstants.DEFAULT_MIN_MASTER_PROCEDURE_THREADS));
-    procedureStore.start(numThreads);
+    procedureStore.start(50);
     procedureExecutor.start(numThreads);
   }
 
