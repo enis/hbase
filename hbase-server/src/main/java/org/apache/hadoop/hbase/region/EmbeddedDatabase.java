@@ -293,8 +293,7 @@ public class EmbeddedDatabase extends AbstractService implements
     return conf;
   }
 
-  @VisibleForTesting
-  WALContainer getWalContainer() {
+  public WALContainer getWalContainer() {
     return walContainer;
   }
 

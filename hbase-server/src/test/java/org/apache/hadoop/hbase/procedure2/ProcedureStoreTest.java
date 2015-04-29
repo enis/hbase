@@ -48,7 +48,7 @@ public class ProcedureStoreTest {
     store = executor.getStore();
 
     procIds = new AtomicLong(0);
-    numProcs = 100000;
+    numProcs = 1000000;
   }
 
   public static class DummyProcedure extends Procedure {
@@ -127,7 +127,7 @@ public class ProcedureStoreTest {
   }
 
   private void run() throws InterruptedException {
-    int numThreads = 3;
+    int numThreads = 5;
 
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Cell;
@@ -58,18 +59,28 @@ public class RegionProcedureStore extends ProcedureStoreBase {
   public static TableName PROCEDURES_TABLE_NAME = TableName.valueOf(
     NamespaceDescriptor.SYSTEM_NAMESPACE_NAME, Bytes.toBytes("procedures"));
 
-  private static byte[] FAMILY = Bytes.toBytes("info");
-  private static byte[] QUALIFIER = Bytes.toBytes("data");
+  private static byte[] FAMILY = Bytes.toBytes("i");
+  private static byte[] QUALIFIER = Bytes.toBytes("d");
 
-  private static HTableDescriptor TABLE_DESCRIPTOR
-    = new HTableDescriptor(RegionProcedureStore.PROCEDURES_TABLE_NAME)
+  private static final int numShards = 8;
+
+  private static HTableDescriptor[] TABLE_DESCRIPTORS;
+
+  static {
+    TABLE_DESCRIPTORS = new HTableDescriptor[numShards];
+
+    for (int i = 0; i < TABLE_DESCRIPTORS.length; i++) {
+      TABLE_DESCRIPTORS[i] =  new HTableDescriptor(TableName.valueOf(
+        RegionProcedureStore.PROCEDURES_TABLE_NAME + "_" + i))
       .addFamily(new HColumnDescriptor(RegionProcedureStore.FAMILY));
+    }
+  }
 
   private Connection connection;
-  private Table table;
+  private Table[] tables;
 
-  public static HTableDescriptor getTableDescriptor() {
-    return TABLE_DESCRIPTOR;
+  public static HTableDescriptor[] getTableDescriptors() {
+    return TABLE_DESCRIPTORS;
   }
 
   public RegionProcedureStore(Connection connection) throws IOException {
@@ -90,12 +101,16 @@ public class RegionProcedureStore extends ProcedureStoreBase {
     if (running.getAndSet(true)) {
       return;
     }
-    this.table = connection.getTable(PROCEDURES_TABLE_NAME);
+    this.numThreads = numThreads;
+    this.tables = new Table[numShards];
+    for (int i = 0; i < numShards; i++) {
+      this.tables[i] = connection.getTable(TableName.valueOf(PROCEDURES_TABLE_NAME + "_" + i));
+    }
   }
 
   @Override
   public int getNumThreads() {
-    return 1;
+    return numThreads;
   }
 
   @Override
@@ -104,9 +119,11 @@ public class RegionProcedureStore extends ProcedureStoreBase {
       return;
     }
     try {
-      if (table != null) {
-        table.close();
-        table = null;
+      if (tables != null) {
+        for (Table table : tables) {
+          table.close();
+        }
+        tables = null;
       }
     } catch (IOException e) {
       LOG.warn("Received IOException closing the table", e);
@@ -115,7 +132,7 @@ public class RegionProcedureStore extends ProcedureStoreBase {
 
   @Override
   public Iterator<Procedure> load() throws IOException {
-    final ResultScanner scanner = table.getScanner(new Scan());
+    final ResultScanner scanner = tables[0].getScanner(new Scan()); //TODO: read all tables
 
     final Iterator raw = scanner.iterator();
 
@@ -161,6 +178,7 @@ public class RegionProcedureStore extends ProcedureStoreBase {
     }
 
     try {
+      int shard = getShard(proc.getProcId());
       Put put = serializeProcedure(proc);
       List<Put> puts;
       if (subprocs != null) {
@@ -169,10 +187,10 @@ public class RegionProcedureStore extends ProcedureStoreBase {
         for (int i = 0; i < subprocs.length; ++i) {
           puts.add(serializeProcedure(subprocs[i]));
         }
-        table.put(puts);  // Assume atomic update using HRegion.mutateRowsWithLocks()
+        tables[shard].put(puts);  // Assume atomic update using HRegion.mutateRowsWithLocks()
       } else {
         assert !proc.hasParent();
-        table.put(put);
+        tables[shard].put(put);
       }
     } catch (IOException e) {
       // We are not able to serialize the procedure.
@@ -184,6 +202,12 @@ public class RegionProcedureStore extends ProcedureStoreBase {
     }
   }
 
+  private int getShard(long procId) {
+    // TODO: this should look at the root procedure's procId
+    int shard = (int) (procId % numShards);
+    return shard;
+  }
+
   @Override
   public void update(Procedure proc) {
     if (LOG.isTraceEnabled()) {
@@ -191,7 +215,7 @@ public class RegionProcedureStore extends ProcedureStoreBase {
     }
     try {
       Put put = serializeProcedure(proc);
-      table.put(put);
+      tables[getShard(proc.getProcId())].put(put);
     } catch (IOException e) {
       // We are not able to serialize the procedure.
       // this is a code error, and we are not able to go on.
@@ -208,7 +232,7 @@ public class RegionProcedureStore extends ProcedureStoreBase {
         LOG.trace("delete " + procId);
       }
       Delete delete = new Delete(Bytes.toBytes(procId));
-      table.delete(delete);
+      tables[getShard(procId)].delete(delete);
     } catch (IOException e) {
       // We are not able to serialize the procedure.
       // this is a code error, and we are not able to go on.

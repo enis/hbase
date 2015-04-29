@@ -73,9 +73,9 @@ public class BootstrapTableService extends AbstractService {
    * Adds pre-defined bootstrap tables to the service.
    */
   private List<HTableDescriptor> getBootstrappedTables() {
-    HTableDescriptor procedureTable = RegionProcedureStore.getTableDescriptor();
+    HTableDescriptor[] procedureTables = RegionProcedureStore.getTableDescriptors();
 
-    return Lists.newArrayList(procedureTable);
+    return Lists.newArrayList(procedureTables);
   }
 
   @Override
@@ -116,6 +116,9 @@ public class BootstrapTableService extends AbstractService {
     }
   }
 
+  public EmbeddedDatabase getEmbeededDatabase() {
+    return db;
+  }
 
   public Connection getConnection() {
     return db.createConnection();

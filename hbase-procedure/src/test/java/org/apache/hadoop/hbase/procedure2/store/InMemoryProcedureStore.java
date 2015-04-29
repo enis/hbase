@@ -40,6 +40,7 @@ public class InMemoryProcedureStore extends ProcedureStoreBase {
     if (running.getAndSet(true)) {
       return;
     }
+    this.numThreads = numThreads;
   }
 
   @Override

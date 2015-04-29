@@ -37,10 +37,10 @@ import org.apache.hadoop.hbase.procedure2.store.wal.*;
 import org.apache.hadoop.hbase.procedure2.util.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
 import static org.junit.Assert.fail;
 import static org.junit.Assert.assertTrue;
 
@@ -158,9 +158,7 @@ public class TestProcedureStorePerf {
   private ProcedureStore store;
   private AtomicLong procIds;
 
-  private long run() throws InterruptedException {
-    int numThreads = store.getNumThreads();
-
+  private long run(int numThreads) throws InterruptedException {
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
     long start = System.currentTimeMillis();
@@ -196,10 +194,16 @@ public class TestProcedureStorePerf {
         store = UTIL.getMiniHBaseCluster().getMaster().getMasterProcedureExecutor().getStore();
       }
 
+//      if (true) {
+//        store = new FSHLogProcedureStore(
+//          UTIL.getMiniHBaseCluster().getMaster().getBootstrapTableService().getEmbeededDatabase().getWalContainer());
+//        store.start(Math.max(1, numThreads / UNDER_TUNE_WAL_THREAD_DIV));
+//      }
+
       procIds = new AtomicLong(0);
       this.numProcs = numProcs;
 
-      ms = run();
+      ms = run(numThreads);
       LOG.info("Wrote " + numProcs + " procedures in " + StringUtils.humanTimeDiff(ms));
     } finally {
       store.stop(false);
@@ -215,8 +219,9 @@ public class TestProcedureStorePerf {
   private static final int ONE_M = 1000000;
   private static final int TEN_K = 100000;
 
+
   @Test
-  public void runTestWith4ThreadsAndProcV2Wal() throws Exception {
+  public void runTestWith5ThreadsAndProcV2Wal() throws Exception {
     runTest(5, ONE_M, true, false);
   }
 
@@ -234,12 +239,18 @@ public class TestProcedureStorePerf {
   public void runTestWith50ThreadsAndProcV2Wal() throws Exception {
     runTest(50, ONE_M, true, false);
   }
+
+  @Test
+  public void runTestWith150ThreadsAndProcV2Wal() throws Exception {
+    runTest(150, ONE_M, true, false);
+  }
 /*
   @Test
   public void runTestWith50ThreadsAndProcV2WalAndHSync() throws Exception {
     runTest(256, TEN_K, true, true);
   }
 */
+
   @Test
   public void runTestWith5ThreadsAndRegionStore() throws Exception {
     runTest(5, ONE_M, false, false);
@@ -258,5 +269,10 @@ public class TestProcedureStorePerf {
   @Test
   public void runTestWith50ThreadsAndRegionStore() throws Exception {
     runTest(50, ONE_M, false, false);
+  }
+
+  @Test
+  public void runTestWith150ThreadsAndRegionStore() throws Exception {
+    runTest(150, ONE_M, false, false);
   }
 }

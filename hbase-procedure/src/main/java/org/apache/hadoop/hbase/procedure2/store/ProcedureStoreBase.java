@@ -30,10 +30,16 @@ public abstract class ProcedureStoreBase implements ProcedureStore {
       new CopyOnWriteArrayList<ProcedureStoreListener>();
 
   protected AtomicBoolean running = new AtomicBoolean();
+  protected int numThreads;
 
   @Override
   public boolean isRunning() {
     return running.get();
+  }
+
+  @Override
+  public int getNumThreads() {
+    return numThreads;
   }
 
   @Override
