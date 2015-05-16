@@ -1,0 +1,11 @@
+--- hbase-client/src/main/java/org/apache/hadoop/hbase/zookeeper/ZooKeeperWatcher.java
++++ hbase-client/src/main/java/org/apache/hadoop/hbase/zookeeper/ZooKeeperWatcher.java
+@@ -223,7 +236,7 @@
+   private void setNodeNames(Configuration conf) {
+     baseZNode = conf.get(HConstants.ZOOKEEPER_ZNODE_PARENT,
+         HConstants.DEFAULT_ZOOKEEPER_ZNODE_PARENT);
+-    
++
+     metaReplicaZnodes.put(0, ZKUtil.joinZNode(baseZNode,
+         conf.get("zookeeper.znode.metaserver", "meta-region-server")));
+     int numMetaReplicas = conf.getInt(HConstants.META_REPLICAS_NUM,

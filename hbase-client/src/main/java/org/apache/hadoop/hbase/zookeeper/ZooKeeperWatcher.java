@@ -21,7 +21,6 @@ package org.apache.hadoop.hbase.zookeeper;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +38,6 @@ import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooDefs;
-import org.apache.zookeeper.data.ACL;
 
 /**
  * Acts as the single ZooKeeper Watcher.  One instance of this is instantiated
@@ -183,6 +180,18 @@ public class ZooKeeperWatcher implements Watcher, Abortable, Closeable {
     }
   }
 
+  /** Returns whether the znode is supposed to be readable by the client
+   * and DOES NOT contain sensitive information (world readable).*/
+  public boolean isClientReadable(String node) {
+    return ((node.equals(baseZNode) == true) ||
+        (isAnyMetaReplicaZnode(node)) ||
+        (node.equals(getMasterAddressZNode()) == true) ||
+        (node.equals(clusterIdZNode) == true) ||
+        (node.equals(rsZNode) == true) ||
+        (node.equals(backupMasterAddressesZNode) == true) ||
+        (node.startsWith(tableZNode) == true));
+  }
+
   @Override
   public String toString() {
     return this.identifier + ", quorum=" + quorum + ", baseZNode=" + baseZNode;
@@ -304,7 +313,7 @@ public class ZooKeeperWatcher implements Watcher, Abortable, Closeable {
     String pattern = conf.get("zookeeper.znode.metaserver","meta-region-server");
     if (znode.equals(pattern)) return HRegionInfo.DEFAULT_REPLICA_ID;
     // the non-default replicas are of the pattern meta-region-server-<replicaId>
-    String nonDefaultPattern = pattern + "-"; 
+    String nonDefaultPattern = pattern + "-";
     return Integer.parseInt(znode.substring(nonDefaultPattern.length()));
   }
 
@@ -552,6 +561,7 @@ public class ZooKeeperWatcher implements Watcher, Abortable, Closeable {
    *
    * @throws InterruptedException
    */
+  @Override
   public void close() {
     try {
       if (recoverableZooKeeper != null) {

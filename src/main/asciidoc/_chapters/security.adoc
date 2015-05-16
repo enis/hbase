@@ -81,8 +81,8 @@ This describes how to set up Apache HBase and clients for connection to secure H
 === Prerequisites
 
 Hadoop Authentication Configuration::
-  To run HBase RPC with strong authentication, you must set `hbase.security.authentication` to `true`.
-  In this case, you must also set `hadoop.security.authentication` to `true`.
+  To run HBase RPC with strong authentication, you must set `hbase.security.authentication` to `kerberos`.
+  In this case, you must also set `hadoop.security.authentication` to `kerberos` in core-site.xml.
   Otherwise, you would be using strong authentication for HBase but not for the underlying HDFS, which would cancel out any benefit.
 
 Kerberos KDC::
