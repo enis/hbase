@@ -23,9 +23,14 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.wal.WAL.Entry;
+import org.apache.hadoop.hbase.wal.WALKey;
 
-public class FaultySequenceFileLogReader extends SequenceFileLogReader {
+public class FaultyLogReader extends ProtobufLogReader {
+
+  private static final Log LOG = LogFactory.getLog(FaultyLogReader.class);
 
   // public until class relocates to o.a.h.h.wal
   public enum FailureType {
@@ -41,12 +46,12 @@ public class FaultySequenceFileLogReader extends SequenceFileLogReader {
 
   @Override
   public Entry next(Entry reuse) throws IOException {
-    this.entryStart = this.getPosition();
+    long entryStart = this.getPosition();
     boolean b = true;
 
     if (nextQueue.isEmpty()) { // Read the whole thing at once and fake reading
       while (b == true) {
-        Entry e = new Entry(new HLogKey(), new WALEdit());
+        Entry e = new Entry(new WALKey(), new WALEdit());
         if (compressionContext != null) {
           e.setCompressionContext(compressionContext);
         }
@@ -58,12 +63,12 @@ public class FaultySequenceFileLogReader extends SequenceFileLogReader {
 
     if (nextQueue.size() == this.numberOfFileEntries
         && getFailureType() == FailureType.BEGINNING) {
-      throw this.addFileInfoToException(new IOException("fake Exception"));
+      throw this.addFileInfoToException(entryStart, new IOException("fake Exception"));
     } else if (nextQueue.size() == this.numberOfFileEntries / 2
         && getFailureType() == FailureType.MIDDLE) {
-      throw this.addFileInfoToException(new IOException("fake Exception"));
+      throw this.addFileInfoToException(entryStart, new IOException("fake Exception"));
     } else if (nextQueue.size() == 1 && getFailureType() == FailureType.END) {
-      throw this.addFileInfoToException(new IOException("fake Exception"));
+      throw this.addFileInfoToException(entryStart, new IOException("fake Exception"));
     }
 
     if (nextQueue.peek() != null) {
@@ -76,5 +81,38 @@ public class FaultySequenceFileLogReader extends SequenceFileLogReader {
       return null;
     }
     return e;
+  }
+
+  private IOException addFileInfoToException(long entryStart, final IOException ioe)
+      throws IOException {
+    long pos = -1;
+    try {
+      pos = getPosition();
+    } catch (IOException e) {
+      LOG.warn("Failed getting position to add to throw", e);
+    }
+
+    String msg = (this.path == null? "": this.path.toString()) +
+        ", entryStart=" + entryStart + ", pos=" + pos +
+        ", fileLength=" + getFileLength() +
+        ", edit=" + this.edit;
+
+    // Enhance via reflection so we don't change the original class type
+    try {
+      return (IOException) ioe.getClass()
+          .getConstructor(String.class)
+          .newInstance(msg)
+          .initCause(ioe);
+    } catch(NoSuchMethodException nfe) {
+      /* reflection failure, keep going */
+      if (LOG.isTraceEnabled()) LOG.trace(nfe);
+    } catch(IllegalAccessException iae) {
+      /* reflection failure, keep going */
+      if (LOG.isTraceEnabled()) LOG.trace(iae);
+    } catch(Exception e) {
+      /* All other cases. Should we handle it more aggressively? */
+      LOG.warn("Unexpected exception when accessing the end field", e);
+    }
+    return ioe;
   }
 }

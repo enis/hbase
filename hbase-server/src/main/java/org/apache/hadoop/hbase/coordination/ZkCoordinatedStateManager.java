@@ -38,7 +38,6 @@ public class ZkCoordinatedStateManager extends BaseCoordinatedStateManager {
     this.watcher = server.getZooKeeper();
     splitLogWorkerCoordination = new ZkSplitLogWorkerCoordination(this, watcher);
     splitLogManagerCoordination = new ZKSplitLogManagerCoordination(this, watcher);
-
   }
 
   @Override
@@ -49,7 +48,8 @@ public class ZkCoordinatedStateManager extends BaseCoordinatedStateManager {
   @Override
   public SplitLogWorkerCoordination getSplitLogWorkerCoordination() {
     return splitLogWorkerCoordination;
-    }
+  }
+
   @Override
   public SplitLogManagerCoordination getSplitLogManagerCoordination() {
     return splitLogManagerCoordination;

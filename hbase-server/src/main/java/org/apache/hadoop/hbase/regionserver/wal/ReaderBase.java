@@ -131,6 +131,11 @@ public abstract class ReaderBase implements AbstractFSWALProvider.Reader {
     seekOnFs(pos);
   }
 
+  @Override
+  public long getFileLength() throws IOException {
+    return fileLength;
+  }
+
   /**
    * Initializes the log reader with a particular stream (may be null).
    * Reader assumes ownership of the stream if not null and may use it. Called once.

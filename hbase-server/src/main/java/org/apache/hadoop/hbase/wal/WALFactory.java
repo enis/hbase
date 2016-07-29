@@ -44,7 +44,6 @@ import org.apache.hadoop.hbase.util.LeaseNotRecoveredException;
 // imports for things that haven't moved from regionserver.wal yet.
 import org.apache.hadoop.hbase.regionserver.wal.MetricsWAL;
 import org.apache.hadoop.hbase.regionserver.wal.ProtobufLogReader;
-import org.apache.hadoop.hbase.regionserver.wal.SequenceFileLogReader;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 
 /**
@@ -312,7 +311,12 @@ public class WALFactory {
             boolean isPbWal =
                 (stream.read(magic) == magic.length)
                     && Arrays.equals(magic, ProtobufLogReader.PB_WAL_MAGIC);
-            reader = isPbWal ? new ProtobufLogReader() : new SequenceFileLogReader();
+            if (!isPbWal) {
+              throw new IOException("Cannot read non-PB WAL file. If this is an upgrade from before"
+                  + "HBase-1.0 (0.92, 0.94) please make sure that all WAL files are cleaned up and "
+                  + "cluster is shutdown gracefully before upgrade.");
+            }
+            reader =  new ProtobufLogReader();
             reader.init(fs, path, conf, stream);
             return reader;
           }
@@ -399,7 +403,7 @@ public class WALFactory {
   // For now, first Configuration object wins. Practically this just impacts the reader/writer class
   private static final AtomicReference<WALFactory> singleton = new AtomicReference<WALFactory>();
   private static final String SINGLETON_ID = WALFactory.class.getName();
-  
+
   // public only for FSHLog
   public static WALFactory getInstance(Configuration configuration) {
     WALFactory factory = singleton.get();

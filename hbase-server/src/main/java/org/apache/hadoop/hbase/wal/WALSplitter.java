@@ -251,7 +251,7 @@ public class WALSplitter {
     if (logfiles != null && logfiles.length > 0) {
       for (FileStatus logfile: logfiles) {
         WALSplitter s = new WALSplitter(factory, conf, rootDir, fs, null, null,
-            RecoveryMode.LOG_SPLITTING);
+          RecoveryMode.LOG_SPLITTING);
         if (s.splitLogFile(logfile, null)) {
           finishSplitLogFile(rootDir, oldLogDir, logfile.getPath(), conf);
           if (s.outputSink.splits != null) {
@@ -385,8 +385,7 @@ public class WALSplitter {
       throw iie;
     } catch (CorruptedLogFileException e) {
       LOG.warn("Could not parse, corrupted log file " + logPath, e);
-      csm.getSplitLogWorkerCoordination().markCorrupted(rootDir,
-        logfile.getPath().getName(), fs);
+      ZKSplitLog.markCorrupted(rootDir, logfile.getPath().getName(), fs);
       isCorrupted = true;
     } catch (IOException e) {
       e = e instanceof RemoteException ? ((RemoteException) e).unwrapRemoteException() : e;

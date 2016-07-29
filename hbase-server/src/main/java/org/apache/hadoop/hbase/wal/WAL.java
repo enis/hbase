@@ -230,6 +230,7 @@ public interface WAL {
     void seek(long pos) throws IOException;
     long getPosition() throws IOException;
     void reset() throws IOException;
+    long getFileLength() throws IOException;
   }
 
   /**

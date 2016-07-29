@@ -65,7 +65,8 @@ import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos;
 import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos.SplitLogTask.RecoveryMode;
 import org.apache.hadoop.hbase.regionserver.HRegion;
-import org.apache.hadoop.hbase.regionserver.wal.FaultySequenceFileLogReader;
+import org.apache.hadoop.hbase.regionserver.wal.FaultyLogReader;
+import org.apache.hadoop.hbase.regionserver.wal.FaultyLogReader.FailureType;
 import org.apache.hadoop.hbase.regionserver.wal.InstrumentedLogWriter;
 import org.apache.hadoop.hbase.regionserver.wal.ProtobufLogReader;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
@@ -539,8 +540,11 @@ public class TestWALSplit {
   @Test (timeout=300000)
   public void testCorruptedFileGetsArchivedIfSkipErrors() throws IOException {
     conf.setBoolean(HBASE_SKIP_ERRORS, true);
-    for (FaultySequenceFileLogReader.FailureType  failureType :
-        FaultySequenceFileLogReader.FailureType.values()) {
+    for (FaultyLogReader.FailureType  failureType :
+        FaultyLogReader.FailureType.values()) {
+      if (failureType.equals(FailureType.NONE)) {
+        continue;
+      }
       final Set<String> walDirContents = splitCorruptWALs(failureType);
       final Set<String> archivedLogs = new HashSet<String>();
       final StringBuilder archived = new StringBuilder("Archived logs in CORRUPTDIR:");
@@ -558,7 +562,7 @@ public class TestWALSplit {
    * @return set of wal names present prior to split attempt.
    * @throws IOException if the split process fails
    */
-  private Set<String> splitCorruptWALs(final FaultySequenceFileLogReader.FailureType failureType)
+  private Set<String> splitCorruptWALs(final FaultyLogReader.FailureType failureType)
       throws IOException {
     Class<?> backupClass = conf.getClass("hbase.regionserver.hlog.reader.impl",
         Reader.class);
@@ -566,7 +570,7 @@ public class TestWALSplit {
 
     try {
       conf.setClass("hbase.regionserver.hlog.reader.impl",
-          FaultySequenceFileLogReader.class, Reader.class);
+          FaultyLogReader.class, Reader.class);
       conf.set("faultysequencefilelogreader.failuretype", failureType.name());
       // Clean up from previous tests or previous loop
       try {
@@ -604,7 +608,7 @@ public class TestWALSplit {
   public void testTrailingGarbageCorruptionLogFileSkipErrorsFalseThrows()
       throws IOException {
     conf.setBoolean(HBASE_SKIP_ERRORS, false);
-    splitCorruptWALs(FaultySequenceFileLogReader.FailureType.BEGINNING);
+    splitCorruptWALs(FaultyLogReader.FailureType.BEGINNING);
   }
 
   @Test (timeout=300000)
@@ -612,7 +616,7 @@ public class TestWALSplit {
       throws IOException {
     conf.setBoolean(HBASE_SKIP_ERRORS, false);
     try {
-      splitCorruptWALs(FaultySequenceFileLogReader.FailureType.BEGINNING);
+      splitCorruptWALs(FaultyLogReader.FailureType.BEGINNING);
     } catch (IOException e) {
       LOG.debug("split with 'skip errors' set to 'false' correctly threw");
     }
@@ -784,6 +788,7 @@ public class TestWALSplit {
     someOldThread.setDaemon(true);
     someOldThread.start();
     final Thread t = new Thread("Background-thread-dumper") {
+      @Override
       public void run() {
         try {
           Threads.threadDumpingIsAlive(someOldThread);
@@ -852,6 +857,7 @@ public class TestWALSplit {
           "Blocklist for " + OLDLOGDIR + " has changed"};
       private int count = 0;
 
+      @Override
       public FSDataInputStream answer(InvocationOnMock invocation) throws Throwable {
         if (count < 3) {
           throw new IOException(errors[count++]);
@@ -881,6 +887,7 @@ public class TestWALSplit {
 
     FileSystem spiedFs = Mockito.spy(fs);
     Mockito.doAnswer(new Answer<FSDataInputStream>() {
+      @Override
       public FSDataInputStream answer(InvocationOnMock invocation) throws Throwable {
         Thread.sleep(1500); // Sleep a while and wait report status invoked
         return (FSDataInputStream)invocation.callRealMethod();
