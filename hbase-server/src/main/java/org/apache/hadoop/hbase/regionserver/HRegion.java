@@ -164,8 +164,7 @@ import org.apache.hadoop.hbase.regionserver.compactions.CompactionContext;
 import org.apache.hadoop.hbase.regionserver.throttle.CompactionThroughputControllerFactory;
 import org.apache.hadoop.hbase.regionserver.throttle.NoLimitThroughputController;
 import org.apache.hadoop.hbase.regionserver.throttle.ThroughputController;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
-import org.apache.hadoop.hbase.regionserver.wal.ReplayHLogKey;
+import org.apache.hadoop.hbase.regionserver.wal.ReplayWALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.regionserver.wal.WALUtil;
 import org.apache.hadoop.hbase.security.User;
@@ -3223,7 +3222,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       WALKey walKey = null;
       if (replay) {
         // use wal key from the original
-        walKey = new ReplayHLogKey(this.getRegionInfo().getEncodedNameAsBytes(),
+        walKey = new ReplayWALKey(this.getRegionInfo().getEncodedNameAsBytes(),
           this.htableDescriptor.getTableName(), WALKey.NO_SEQUENCE_ID, now,
           mutation.getClusterIds(), currentNonceGroup, currentNonce, mvcc);
         walKey.setOrigLogSeqNum(batchOp.getReplaySequenceId());
@@ -3232,8 +3231,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       // called for replayed edits? Am afraid to change it without test.
       if (!walEdit.isEmpty()) {
         if (!replay) {
-          // we use HLogKey here instead of WALKey directly to support legacy coprocessors.
-          walKey = new HLogKey(this.getRegionInfo().getEncodedNameAsBytes(),
+          walKey = new WALKey(this.getRegionInfo().getEncodedNameAsBytes(),
               this.htableDescriptor.getTableName(), WALKey.NO_SEQUENCE_ID, now,
               mutation.getClusterIds(), currentNonceGroup, currentNonce, mvcc,
               this.getReplicationScope());

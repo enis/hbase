@@ -35,6 +35,7 @@ import org.apache.hadoop.hbase.util.FSUtils;
 
 import org.apache.hadoop.hbase.wal.AbstractFSWALProvider;
 import org.apache.hadoop.hbase.wal.WAL.Entry;
+import org.apache.hadoop.hbase.wal.WALKey;
 
 @InterfaceAudience.LimitedPrivate({HBaseInterfaceAudience.COPROC, HBaseInterfaceAudience.PHOENIX})
 public abstract class ReaderBase implements AbstractFSWALProvider.Reader {
@@ -91,9 +92,7 @@ public abstract class ReaderBase implements AbstractFSWALProvider.Reader {
   public Entry next(Entry reuse) throws IOException {
     Entry e = reuse;
     if (e == null) {
-      // we use HLogKey here instead of WALKey directly to support legacy coprocessors,
-      // seqencefile based readers, and HLogInputFormat.
-      e = new Entry(new HLogKey(), new WALEdit());
+      e = new Entry(new WALKey(), new WALEdit());
     }
     if (compressionContext != null) {
       e.setCompressionContext(compressionContext);
@@ -147,7 +146,7 @@ public abstract class ReaderBase implements AbstractFSWALProvider.Reader {
    * Initializes the compression after the shared stuff has been initialized. Called once.
    */
   protected abstract void initAfterCompression() throws IOException;
-  
+
   /**
    * Initializes the compression after the shared stuff has been initialized. Called once.
    * @param cellCodecClsName class name of cell Codec

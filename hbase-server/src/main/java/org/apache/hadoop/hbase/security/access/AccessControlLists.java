@@ -610,6 +610,8 @@ public class AccessControlLists {
         throw new DeserializationException(e);
       }
     } else {
+      // TODO: We have to re-write non-PB data as PB encoded. Otherwise we will carry old Writables
+      // forever (here and a couple of other places).
       ListMultimap<String,TablePermission> perms = ArrayListMultimap.create();
       try {
         DataInput in = new DataInputStream(new ByteArrayInputStream(data));
@@ -674,7 +676,7 @@ public class AccessControlLists {
          // Deserialize the table permissions from the KV
          // TODO: This can be improved. Don't build UsersAndPermissions just to unpack it again,
          // use the builder
-         AccessControlProtos.UsersAndPermissions.Builder builder = 
+         AccessControlProtos.UsersAndPermissions.Builder builder =
            AccessControlProtos.UsersAndPermissions.newBuilder();
          if (tag.hasArray()) {
            ProtobufUtil.mergeFrom(builder, tag.getValueArray(), tag.getValueOffset(),

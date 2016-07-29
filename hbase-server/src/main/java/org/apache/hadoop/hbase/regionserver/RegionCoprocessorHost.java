@@ -78,7 +78,6 @@ import org.apache.hadoop.hbase.ipc.RpcServer;
 import org.apache.hadoop.hbase.regionserver.Region.Operation;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.regionserver.querymatcher.DeleteTracker;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.wal.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
@@ -104,7 +103,7 @@ public class RegionCoprocessorHost
   private final boolean hasCustomPostScannerFilterRow;
 
   /**
-   * 
+   *
    * Encapsulation of the environment of each coprocessor
    */
   static class RegionEnvironment extends CoprocessorHost.Environment
@@ -113,8 +112,6 @@ public class RegionCoprocessorHost
     private Region region;
     private RegionServerServices rsServices;
     ConcurrentMap<String, Object> sharedData;
-    private final boolean useLegacyPre;
-    private final boolean useLegacyPost;
 
     /**
      * Constructor
@@ -128,14 +125,6 @@ public class RegionCoprocessorHost
       this.region = region;
       this.rsServices = services;
       this.sharedData = sharedData;
-      // Pick which version of the WAL related events we'll call.
-      // This way we avoid calling the new version on older RegionObservers so
-      // we can maintain binary compatibility.
-      // See notes in javadoc for RegionObserver
-      useLegacyPre = useLegacyMethod(impl.getClass(), "preWALRestore", ObserverContext.class,
-          HRegionInfo.class, WALKey.class, WALEdit.class);
-      useLegacyPost = useLegacyMethod(impl.getClass(), "postWALRestore", ObserverContext.class,
-          HRegionInfo.class, WALKey.class, WALEdit.class);
     }
 
     /** @return the region */
@@ -150,6 +139,7 @@ public class RegionCoprocessorHost
       return rsServices;
     }
 
+    @Override
     public void shutdown() {
       super.shutdown();
     }
@@ -369,7 +359,7 @@ public class RegionCoprocessorHost
     // scan the table attributes for coprocessor load specifications
     // initialize the coprocessors
     List<RegionEnvironment> configured = new ArrayList<RegionEnvironment>();
-    for (TableCoprocessorAttribute attr: getTableCoprocessorAttrsFromSchema(conf, 
+    for (TableCoprocessorAttribute attr: getTableCoprocessorAttrsFromSchema(conf,
         region.getTableDesc())) {
       // Load encompasses classloading and coprocessor initialization
       try {
@@ -520,6 +510,7 @@ public class RegionCoprocessorHost
             throws IOException {
           oserver.postClose(ctx, abortRequested);
         }
+        @Override
         public void postEnvCall(RegionEnvironment env) {
           shutdown(env);
         }
@@ -1448,30 +1439,9 @@ public class RegionCoprocessorHost
       @Override
       public void call(RegionObserver oserver, ObserverContext<RegionCoprocessorEnvironment> ctx)
           throws IOException {
-        // Once we don't need to support the legacy call, replace RegionOperation with a version
-        // that's ObserverContext<RegionEnvironment> and avoid this cast.
-        final RegionEnvironment env = (RegionEnvironment)ctx.getEnvironment();
-        if (env.useLegacyPre) {
-          if (logKey instanceof HLogKey) {
-            oserver.preWALRestore(ctx, info, (HLogKey)logKey, logEdit);
-          } else {
-            legacyWarning(oserver.getClass(), "There are wal keys present that are not HLogKey.");
-          }
-        } else {
-          oserver.preWALRestore(ctx, info, logKey, logEdit);
-        }
+        oserver.preWALRestore(ctx, info, logKey, logEdit);
       }
     });
-  }
-
-  /**
-   * @return true if default behavior should be bypassed, false otherwise
-   * @deprecated use {@link #preWALRestore(HRegionInfo, WALKey, WALEdit)}; as of 2.0, remove in 3.0
-   */
-  @Deprecated
-  public boolean preWALRestore(final HRegionInfo info, final HLogKey logKey,
-      final WALEdit logEdit) throws IOException {
-    return preWALRestore(info, (WALKey)logKey, logEdit);
   }
 
   /**
@@ -1486,29 +1456,9 @@ public class RegionCoprocessorHost
       @Override
       public void call(RegionObserver oserver, ObserverContext<RegionCoprocessorEnvironment> ctx)
           throws IOException {
-        // Once we don't need to support the legacy call, replace RegionOperation with a version
-        // that's ObserverContext<RegionEnvironment> and avoid this cast.
-        final RegionEnvironment env = (RegionEnvironment)ctx.getEnvironment();
-        if (env.useLegacyPost) {
-          if (logKey instanceof HLogKey) {
-            oserver.postWALRestore(ctx, info, (HLogKey)logKey, logEdit);
-          } else {
-            legacyWarning(oserver.getClass(), "There are wal keys present that are not HLogKey.");
-          }
-        } else {
-          oserver.postWALRestore(ctx, info, logKey, logEdit);
-        }
+        oserver.postWALRestore(ctx, info, logKey, logEdit);
       }
     });
-  }
-
-  /**
-   * @deprecated use {@link #postWALRestore(HRegionInfo, WALKey, WALEdit)}; as of 2.0, remove in 3.0
-   */
-  @Deprecated
-  public void postWALRestore(final HRegionInfo info, final HLogKey logKey, final WALEdit logEdit)
-      throws IOException {
-    postWALRestore(info, (WALKey)logKey, logEdit);
   }
 
   /**
@@ -1685,10 +1635,12 @@ public class RegionCoprocessorHost
     public abstract void call(RegionObserver observer,
         ObserverContext<RegionCoprocessorEnvironment> ctx) throws IOException;
 
+    @Override
     public boolean hasCall(Coprocessor observer) {
       return observer instanceof RegionObserver;
     }
 
+    @Override
     public void call(Coprocessor observer, ObserverContext<RegionCoprocessorEnvironment> ctx)
         throws IOException {
       call((RegionObserver)observer, ctx);
@@ -1712,10 +1664,12 @@ public class RegionCoprocessorHost
     public abstract void call(EndpointObserver observer,
         ObserverContext<RegionCoprocessorEnvironment> ctx) throws IOException;
 
+    @Override
     public boolean hasCall(Coprocessor observer) {
       return observer instanceof EndpointObserver;
     }
 
+    @Override
     public void call(Coprocessor observer, ObserverContext<RegionCoprocessorEnvironment> ctx)
         throws IOException {
       call((EndpointObserver)observer, ctx);

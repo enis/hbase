@@ -34,7 +34,6 @@ import org.apache.hadoop.hbase.classification.InterfaceStability;
 // imports we use from yet-to-be-moved regionsever.wal
 import org.apache.hadoop.hbase.regionserver.wal.CompressionContext;
 import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALCoprocessorHost;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
@@ -242,8 +241,7 @@ public interface WAL {
 
     public Entry() {
       edit = new WALEdit();
-      // we use HLogKey here instead of WALKey directly to support legacy coprocessors.
-      key = new HLogKey();
+      key = new WALKey();
     }
 
     /**

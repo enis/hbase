@@ -589,6 +589,7 @@ public class FSHLog extends AbstractFSWAL<Writer> {
       return sequence;
     }
 
+    @Override
     public void run() {
       long currentSequence;
       while (!isInterrupted()) {

@@ -44,6 +44,7 @@ import org.apache.hadoop.hbase.regionserver.wal.FSHLog;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManagerTestHelper;
 import org.apache.hadoop.hbase.util.Threads;
 import org.apache.hadoop.hbase.wal.WAL;
@@ -220,7 +221,7 @@ public class TestWALLockup {
       Put put = new Put(bytes);
       put.addColumn(COLUMN_FAMILY_BYTES, Bytes.toBytes("1"), bytes);
       WALKey key = new WALKey(region.getRegionInfo().getEncodedNameAsBytes(), htd.getTableName(),
-          scopes);
+          EnvironmentEdgeManager.currentTime(), scopes);
       WALEdit edit = new WALEdit();
       CellScanner CellScanner = put.cellScanner();
       assertTrue(CellScanner.advance());
@@ -247,6 +248,7 @@ public class TestWALLockup {
       // in HBASE-14317. Flush hangs trying to get sequenceid because the ringbuffer is held up
       // by the zigzaglatch waiting on syncs to come home.
       Thread t = new Thread ("Flusher") {
+        @Override
         public void run() {
           try {
             if (region.getMemstoreSize() <= 0) {
@@ -263,7 +265,7 @@ public class TestWALLockup {
       };
       t.setDaemon(true);
       t.start();
-      // Wait until 
+      // Wait until
       while (dodgyWAL.latch.getCount() > 0) Threads.sleep(1);
       // Now assert I got a new WAL file put in place even though loads of errors above.
       assertTrue(originalWAL != dodgyWAL.getCurrentFileName());

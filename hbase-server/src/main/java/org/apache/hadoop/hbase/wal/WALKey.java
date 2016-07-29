@@ -59,8 +59,6 @@ import com.google.protobuf.ByteString;
  * identifies the appropriate table and row.  Within a table and row, they're
  * also sorted.
  *
- * <p>Some Transactional edits (START, COMMIT, ABORT) will not have an associated row.
- *
  * Note that protected members marked @InterfaceAudience.Private are only protected
  * to support the legacy HLogKey class, which is in a different package.
  */
@@ -220,21 +218,15 @@ public class WALKey implements SequenceId, Comparable<WALKey> {
 
   @VisibleForTesting
   public WALKey(final byte[] encodedRegionName, final TableName tablename,
-                long logSeqNum,
-      final long now, UUID clusterId) {
+      long logSeqNum, final long now, UUID clusterId) {
     List<UUID> clusterIds = new ArrayList<UUID>();
     clusterIds.add(clusterId);
     init(encodedRegionName, tablename, logSeqNum, now, clusterIds,
         HConstants.NO_NONCE, HConstants.NO_NONCE, null, null);
   }
 
-  /**
-   * @deprecated Remove. Useless.
-   */
-  @Deprecated // REMOVE
-  public WALKey(final byte[] encodedRegionName, final TableName tablename,
-      final NavigableMap<byte[], Integer> replicationScope) {
-    this(encodedRegionName, tablename, System.currentTimeMillis(), replicationScope);
+  public WALKey(final byte[] encodedRegionName, final TableName tablename) {
+    this(encodedRegionName, tablename, EnvironmentEdgeManager.currentTime());
   }
 
   // TODO: Fix being able to pass in sequenceid.
@@ -461,7 +453,7 @@ public class WALKey implements SequenceId, Comparable<WALKey> {
   public void setOrigLogSeqNum(final long sequenceId) {
     this.origLogSeqNum = sequenceId;
   }
-  
+
   /**
    * Return a positive long if current WALKey is created from a replay edit; a replay edit is an
    * edit that came in when replaying WALs of a crashed server.
@@ -470,7 +462,7 @@ public class WALKey implements SequenceId, Comparable<WALKey> {
   public long getOrigLogSeqNum() {
     return this.origLogSeqNum;
   }
-  
+
   /**
    * SequenceId is only available post WAL-assign. Calls before this will get you a
    * {@link #NO_SEQUENCE_ID}. See the comment on FSHLog#append and #getWriteNumber in this method

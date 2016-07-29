@@ -57,7 +57,6 @@ import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.regionserver.StoreFileReader;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.regionserver.querymatcher.DeleteTracker;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.wal.WALKey;
@@ -470,24 +469,12 @@ public class BaseRegionObserver implements RegionObserver {
       HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
   }
 
-  @Override
-  public void preWALRestore(ObserverContext<RegionCoprocessorEnvironment> env, HRegionInfo info,
-      HLogKey logKey, WALEdit logEdit) throws IOException {
-    preWALRestore(env, info, (WALKey)logKey, logEdit);
-  }
-
   /**
    * Implementers should override this version of the method and leave the deprecated one as-is.
    */
   @Override
   public void postWALRestore(ObserverContext<? extends RegionCoprocessorEnvironment> env,
       HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
-  }
-
-  @Override
-  public void postWALRestore(ObserverContext<RegionCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
-    postWALRestore(env, info, (WALKey)logKey, logEdit);
   }
 
   @Override

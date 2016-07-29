@@ -24,20 +24,21 @@ import java.util.UUID;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.regionserver.MultiVersionConcurrencyControl;
+import org.apache.hadoop.hbase.wal.WALKey;
 
 /**
  * An HLogKey specific to WalEdits coming from replay.
  */
 @InterfaceAudience.Private
-public class ReplayHLogKey extends HLogKey {
+public class ReplayWALKey extends WALKey {
 
-  public ReplayHLogKey(final byte [] encodedRegionName, final TableName tablename,
+  public ReplayWALKey(final byte [] encodedRegionName, final TableName tablename,
       final long now, List<UUID> clusterIds, long nonceGroup, long nonce,
       MultiVersionConcurrencyControl mvcc) {
     super(encodedRegionName, tablename, now, clusterIds, nonceGroup, nonce, mvcc);
   }
 
-  public ReplayHLogKey(final byte [] encodedRegionName, final TableName tablename,
+  public ReplayWALKey(final byte [] encodedRegionName, final TableName tablename,
       long logSeqNum, final long now, List<UUID> clusterIds, long nonceGroup, long nonce,
       MultiVersionConcurrencyControl mvcc) {
     super(encodedRegionName, tablename, logSeqNum, now, clusterIds, nonceGroup, nonce, mvcc);

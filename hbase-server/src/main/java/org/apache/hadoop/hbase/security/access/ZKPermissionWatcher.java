@@ -235,10 +235,10 @@ public class ZKPermissionWatcher extends ZooKeeperListener implements Closeable 
           Bytes.toStringBinary(nodeData));
     }
     if(AccessControlLists.isNamespaceEntry(entry)) {
-      authManager.refreshNamespaceCacheFromWritable(
+      authManager.refreshNamespaceCacheFromSerializedData(
           AccessControlLists.fromNamespaceEntry(entry), nodeData);
     } else {
-      authManager.refreshTableCacheFromWritable(TableName.valueOf(entry), nodeData);
+      authManager.refreshTableCacheFromSerializedData(TableName.valueOf(entry), nodeData);
     }
   }
 

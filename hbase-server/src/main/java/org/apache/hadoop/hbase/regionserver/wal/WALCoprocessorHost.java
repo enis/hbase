@@ -48,9 +48,6 @@ public class WALCoprocessorHost
 
     private final WAL wal;
 
-    final boolean useLegacyPre;
-    final boolean useLegacyPost;
-
     @Override
     public WAL getWAL() {
       return wal;
@@ -70,14 +67,6 @@ public class WALCoprocessorHost
         final WAL wal) {
       super(impl, priority, seq, conf);
       this.wal = wal;
-      // Pick which version of the API we'll call.
-      // This way we avoid calling the new version on older WALObservers so
-      // we can maintain binary compatibility.
-      // See notes in javadoc for WALObserver
-      useLegacyPre = useLegacyMethod(impl.getClass(), "preWALWrite", ObserverContext.class,
-          HRegionInfo.class, WALKey.class, WALEdit.class);
-      useLegacyPost = useLegacyMethod(impl.getClass(), "postWALWrite", ObserverContext.class,
-          HRegionInfo.class, WALKey.class, WALEdit.class);
     }
   }
 
@@ -131,16 +120,7 @@ public class WALCoprocessorHost
         ClassLoader cl = currentThread.getContextClassLoader();
         try {
           currentThread.setContextClassLoader(env.getClassLoader());
-          if (env.useLegacyPre) {
-            if (logKey instanceof HLogKey) {
-              observer.preWALWrite(ctx, info, (HLogKey)logKey, logEdit);
-            } else {
-              legacyWarning(observer.getClass(),
-                  "There are wal keys present that are not HLogKey.");
-            }
-          } else {
-            observer.preWALWrite(ctx, info, logKey, logEdit);
-          }
+          observer.preWALWrite(ctx, info, logKey, logEdit);
         } catch (Throwable e) {
           handleCoprocessorThrowable(env, e);
         } finally {
@@ -175,16 +155,7 @@ public class WALCoprocessorHost
         ClassLoader cl = currentThread.getContextClassLoader();
         try {
           currentThread.setContextClassLoader(env.getClassLoader());
-          if (env.useLegacyPost) {
-            if (logKey instanceof HLogKey) {
-              observer.postWALWrite(ctx, info, (HLogKey)logKey, logEdit);
-            } else {
-              legacyWarning(observer.getClass(),
-                  "There are wal keys present that are not HLogKey.");
-            }
-          } else {
-            observer.postWALWrite(ctx, info, logKey, logEdit);
-          }
+          observer.postWALWrite(ctx, info, logKey, logEdit);
         } catch (Throwable e) {
           handleCoprocessorThrowable(env, e);
         } finally {

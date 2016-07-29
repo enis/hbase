@@ -65,7 +65,6 @@ import org.apache.hadoop.hbase.regionserver.ScanType;
 import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.regionserver.StoreFileReader;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
@@ -677,23 +676,9 @@ public class SimpleRegionObserver extends BaseRegionObserver {
   }
 
   @Override
-  public void preWALRestore(ObserverContext<RegionCoprocessorEnvironment> env, HRegionInfo info,
-                            HLogKey logKey, WALEdit logEdit) throws IOException {
-    preWALRestore(env, info, (WALKey)logKey, logEdit);
-    ctPreWALRestoreDeprecated.incrementAndGet();
-  }
-
-  @Override
   public void postWALRestore(ObserverContext<? extends RegionCoprocessorEnvironment> env,
                              HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     ctPostWALRestore.incrementAndGet();
-  }
-
-  @Override
-  public void postWALRestore(ObserverContext<RegionCoprocessorEnvironment> env,
-                             HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
-    postWALRestore(env, info, (WALKey)logKey, logEdit);
-    ctPostWALRestoreDeprecated.incrementAndGet();
   }
 
   @Override

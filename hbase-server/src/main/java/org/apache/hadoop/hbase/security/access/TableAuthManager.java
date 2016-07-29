@@ -164,7 +164,7 @@ public class TableAuthManager implements Closeable {
     return this.zkperms;
   }
 
-  public void refreshTableCacheFromWritable(TableName table,
+  public void refreshTableCacheFromSerializedData(TableName table,
                                        byte[] data) throws IOException {
     if (data != null && data.length > 0) {
       ListMultimap<String,TablePermission> perms;
@@ -186,7 +186,7 @@ public class TableAuthManager implements Closeable {
     }
   }
 
-  public void refreshNamespaceCacheFromWritable(String namespace, byte[] data) throws IOException {
+  public void refreshNamespaceCacheFromSerializedData(String namespace, byte[] data) throws IOException {
     if (data != null && data.length > 0) {
       ListMultimap<String,TablePermission> perms;
       try {

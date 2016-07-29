@@ -30,7 +30,6 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.regionserver.wal.HLogKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.wal.WALKey;
@@ -103,13 +102,6 @@ implements WALObserver {
   }
 
   @Override
-  public void postWALWrite(ObserverContext<WALCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
-    postWALWriteDeprecatedCalled = true;
-    postWALWrite(env, info, (WALKey)logKey, logEdit);
-  }
-
-  @Override
   public boolean preWALWrite(ObserverContext<? extends WALCoprocessorEnvironment> env,
       HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     boolean bypass = false;
@@ -148,13 +140,6 @@ implements WALObserver {
     return bypass;
   }
 
-  @Override
-  public boolean preWALWrite(ObserverContext<WALCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
-    preWALWriteDeprecatedCalled = true;
-    return preWALWrite(env, info, (WALKey)logKey, logEdit);
-  }
-
   /**
    * Triggered before  {@link org.apache.hadoop.hbase.regionserver.HRegion} when WAL is
    * Restoreed.
@@ -163,13 +148,6 @@ implements WALObserver {
   public void preWALRestore(ObserverContext<? extends RegionCoprocessorEnvironment> env,
       HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     preWALRestoreCalled = true;
-  }
-
-  @Override
-  public void preWALRestore(ObserverContext<RegionCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
-    preWALRestoreDeprecatedCalled = true;
-    preWALRestore(env, info, (WALKey)logKey, logEdit);
   }
 
   @Override
@@ -192,13 +170,6 @@ implements WALObserver {
   public void postWALRestore(ObserverContext<? extends RegionCoprocessorEnvironment> env,
       HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException {
     postWALRestoreCalled = true;
-  }
-
-  @Override
-  public void postWALRestore(ObserverContext<RegionCoprocessorEnvironment> env,
-      HRegionInfo info, HLogKey logKey, WALEdit logEdit) throws IOException {
-    postWALRestoreDeprecatedCalled = true;
-    postWALRestore(env, info, (WALKey)logKey, logEdit);
   }
 
   public boolean isPreWALWriteCalled() {
