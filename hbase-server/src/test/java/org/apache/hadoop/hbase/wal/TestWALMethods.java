@@ -39,9 +39,6 @@ import org.apache.hadoop.hbase.util.FSUtils;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-// imports for things that haven't moved from regionserver.wal yet.
-import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
-
 /**
  * Simple testing of a few WAL methods.
  */

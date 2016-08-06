@@ -36,7 +36,7 @@ import org.apache.hadoop.hbase.regionserver.wal.CompressionContext;
 import org.apache.hadoop.hbase.regionserver.wal.FailedLogCloseException;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 import org.apache.hadoop.hbase.regionserver.wal.WALCoprocessorHost;
-import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
+import org.apache.hadoop.hbase.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Bytes;
 
 /**
@@ -235,6 +235,7 @@ public interface WAL {
   /**
    * Utility class that lets us keep track of the edit with it's key.
    */
+  // TODO: This will go away in future patch.
   class Entry {
     private WALEdit edit;
     private WALKey key;

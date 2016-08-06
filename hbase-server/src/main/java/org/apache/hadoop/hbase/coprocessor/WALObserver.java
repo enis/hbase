@@ -25,8 +25,8 @@ import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.hbase.Coprocessor;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.wal.WALEdit;
 import org.apache.hadoop.hbase.wal.WALKey;
-import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 
 import java.io.IOException;
 
@@ -48,7 +48,7 @@ import java.io.IOException;
 public interface WALObserver extends Coprocessor {
 
   /**
-   * Called before a {@link org.apache.hadoop.hbase.regionserver.wal.WALEdit}
+   * Called before a {@link org.apache.hadoop.hbase.wal.WALEdit}
    * is writen to WAL.
    *
    * @return true if default behavior should be bypassed, false otherwise
@@ -58,7 +58,7 @@ public interface WALObserver extends Coprocessor {
       HRegionInfo info, WALKey logKey, WALEdit logEdit) throws IOException;
 
   /**
-   * Called after a {@link org.apache.hadoop.hbase.regionserver.wal.WALEdit}
+   * Called after a {@link org.apache.hadoop.hbase.wal.WALEdit}
    * is writen to WAL.
    */
   void postWALWrite(ObserverContext<? extends WALCoprocessorEnvironment> ctx,

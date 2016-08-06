@@ -69,7 +69,6 @@ import org.apache.hadoop.hbase.regionserver.wal.FaultyLogReader;
 import org.apache.hadoop.hbase.regionserver.wal.FaultyLogReader.FailureType;
 import org.apache.hadoop.hbase.regionserver.wal.InstrumentedLogWriter;
 import org.apache.hadoop.hbase.regionserver.wal.ProtobufLogReader;
-import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.testclassification.RegionServerTests;
