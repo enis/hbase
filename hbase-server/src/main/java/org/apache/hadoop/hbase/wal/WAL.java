@@ -281,7 +281,6 @@ public interface WAL {
      *          Compression context
      */
     public void setCompressionContext(CompressionContext compressionContext) {
-      edit.setCompressionContext(compressionContext);
       key.setCompressionContext(compressionContext);
     }
 

@@ -18,13 +18,8 @@
  */
 package org.apache.hadoop.hbase.regionserver.wal;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.NavigableMap;
-import java.util.TreeMap;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
@@ -33,7 +28,6 @@ import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.codec.Codec;
 import org.apache.hadoop.hbase.io.HeapSize;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos;
@@ -43,8 +37,6 @@ import org.apache.hadoop.hbase.protobuf.generated.WALProtos.RegionEventDescripto
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.ClassSize;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-import org.apache.hadoop.io.Writable;
-
 import com.google.common.annotations.VisibleForTesting;
 
 
@@ -84,7 +76,7 @@ import com.google.common.annotations.VisibleForTesting;
  */
 @InterfaceAudience.LimitedPrivate({ HBaseInterfaceAudience.REPLICATION,
     HBaseInterfaceAudience.COPROC })
-public class WALEdit implements Writable, HeapSize {
+public class WALEdit implements HeapSize {
   private static final Log LOG = LogFactory.getLog(WALEdit.class);
 
   // TODO: Get rid of this; see HBASE-8457
@@ -100,21 +92,11 @@ public class WALEdit implements Writable, HeapSize {
   @VisibleForTesting
   public static final byte [] BULK_LOAD = Bytes.toBytes("HBASE::BULK_LOAD");
 
-  private final int VERSION_2 = -1;
   private final boolean isReplay;
 
   private ArrayList<Cell> cells = null;
 
   public static final WALEdit EMPTY_WALEDIT = new WALEdit();
-
-  // Only here for legacy writable deserialization
-  /**
-   * @deprecated Legacy
-   */
-  @Deprecated
-  private NavigableMap<byte[], Integer> scopes;
-
-  private CompressionContext compressionContext;
 
   public WALEdit() {
     this(false);
@@ -162,10 +144,6 @@ public class WALEdit implements Writable, HeapSize {
     return this.isReplay;
   }
 
-  public void setCompressionContext(final CompressionContext compressionContext) {
-    this.compressionContext = compressionContext;
-  }
-
   public WALEdit add(Cell cell) {
     this.cells.add(cell);
     return this;
@@ -195,74 +173,6 @@ public class WALEdit implements Writable, HeapSize {
     this.cells = cells;
   }
 
-  public NavigableMap<byte[], Integer> getAndRemoveScopes() {
-    NavigableMap<byte[], Integer> result = scopes;
-    scopes = null;
-    return result;
-  }
-
-  @Override
-  public void readFields(DataInput in) throws IOException {
-    cells.clear();
-    if (scopes != null) {
-      scopes.clear();
-    }
-    int versionOrLength = in.readInt();
-    // TODO: Change version when we protobuf.  Also, change way we serialize KV!  Pb it too.
-    if (versionOrLength == VERSION_2) {
-      // this is new style WAL entry containing multiple KeyValues.
-      int numEdits = in.readInt();
-      for (int idx = 0; idx < numEdits; idx++) {
-        if (compressionContext != null) {
-          this.add(KeyValueCompression.readKV(in, compressionContext));
-        } else {
-          this.add(KeyValueUtil.create(in));
-        }
-      }
-      int numFamilies = in.readInt();
-      if (numFamilies > 0) {
-        if (scopes == null) {
-          scopes = new TreeMap<byte[], Integer>(Bytes.BYTES_COMPARATOR);
-        }
-        for (int i = 0; i < numFamilies; i++) {
-          byte[] fam = Bytes.readByteArray(in);
-          int scope = in.readInt();
-          scopes.put(fam, scope);
-        }
-      }
-    } else {
-      // this is an old style WAL entry. The int that we just
-      // read is actually the length of a single KeyValue
-      this.add(KeyValueUtil.create(versionOrLength, in));
-    }
-  }
-
-  @Override
-  public void write(DataOutput out) throws IOException {
-    LOG.warn("WALEdit is being serialized to writable - only expected in test code");
-    out.writeInt(VERSION_2);
-    out.writeInt(cells.size());
-    // We interleave the two lists for code simplicity
-    for (Cell cell : cells) {
-      // This is not used in any of the core code flows so it is just fine to convert to KV
-      KeyValue kv = KeyValueUtil.ensureKeyValue(cell);
-      if (compressionContext != null) {
-        KeyValueCompression.writeKV(out, kv, compressionContext);
-      } else{
-        KeyValueUtil.write(kv, out);
-      }
-    }
-    if (scopes == null) {
-      out.writeInt(0);
-    } else {
-      out.writeInt(scopes.size());
-      for (byte[] key : scopes.keySet()) {
-        Bytes.writeByteArray(out, key);
-        out.writeInt(scopes.get(key));
-      }
-    }
-  }
-
   /**
    * Reads WALEdit from cells.
    * @param cellDecoder Cell decoder.
@@ -284,11 +194,6 @@ public class WALEdit implements Writable, HeapSize {
     for (Cell cell : cells) {
       ret += CellUtil.estimatedHeapSizeOf(cell);
     }
-    if (scopes != null) {
-      ret += ClassSize.TREEMAP;
-      ret += ClassSize.align(scopes.size() * ClassSize.MAP_ENTRY);
-      // TODO this isn't quite right, need help here
-    }
     return ret;
   }
 
@@ -300,9 +205,6 @@ public class WALEdit implements Writable, HeapSize {
     for (Cell cell : cells) {
       sb.append(cell);
       sb.append("; ");
-    }
-    if (scopes != null) {
-      sb.append(" scopes: " + scopes.toString());
     }
     sb.append(">]");
     return sb.toString();
