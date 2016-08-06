@@ -59,7 +59,6 @@ import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos.WALEntry;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.UUID;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos;
-import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey;
 import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.ReplicationTests;
@@ -381,7 +380,7 @@ public class TestReplicationSink {
   private WALEntry.Builder createWALEntryBuilder(TableName table) {
     WALEntry.Builder builder = WALEntry.newBuilder();
     builder.setAssociatedCellCount(1);
-    WALKey.Builder keyBuilder = WALKey.newBuilder();
+    WALProtos.WALEdit.Builder keyBuilder = WALProtos.WALEdit.newBuilder();
     UUID.Builder uuidBuilder = UUID.newBuilder();
     uuidBuilder.setLeastSigBits(HConstants.DEFAULT_CLUSTER_ID.getLeastSignificantBits());
     uuidBuilder.setMostSigBits(HConstants.DEFAULT_CLUSTER_ID.getMostSignificantBits());
@@ -390,7 +389,7 @@ public class TestReplicationSink {
     keyBuilder.setWriteTime(System.currentTimeMillis());
     keyBuilder.setEncodedRegionName(ByteStringer.wrap(HConstants.EMPTY_BYTE_ARRAY));
     keyBuilder.setLogSequenceNumber(-1);
-    builder.setKey(keyBuilder.build());
+    builder.setEdit(keyBuilder.build());
     return builder;
   }
 }

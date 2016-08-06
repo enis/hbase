@@ -2310,8 +2310,8 @@ public class WALSplitter {
       return new ArrayList<MutationReplay>();
     }
 
-    long replaySeqId = (entry.getKey().hasOrigSequenceNumber()) ?
-      entry.getKey().getOrigSequenceNumber() : entry.getKey().getLogSequenceNumber();
+    long replaySeqId = (entry.getEdit().hasOrigSequenceNumber()) ?
+      entry.getEdit().getOrigSequenceNumber() : entry.getEdit().getLogSequenceNumber();
     int count = entry.getAssociatedCellCount();
     List<MutationReplay> mutations = new ArrayList<MutationReplay>();
     Cell previousCell = null;
@@ -2341,9 +2341,9 @@ public class WALSplitter {
         } else {
           m = new Put(cell.getRowArray(), cell.getRowOffset(), cell.getRowLength());
           // Puts might come from increment or append, thus we need nonces.
-          long nonceGroup = entry.getKey().hasNonceGroup()
-              ? entry.getKey().getNonceGroup() : HConstants.NO_NONCE;
-          long nonce = entry.getKey().hasNonce() ? entry.getKey().getNonce() : HConstants.NO_NONCE;
+          long nonceGroup = entry.getEdit().hasNonceGroup()
+              ? entry.getEdit().getNonceGroup() : HConstants.NO_NONCE;
+          long nonce = entry.getEdit().hasNonce() ? entry.getEdit().getNonce():HConstants.NO_NONCE;
           mutations.add(new MutationReplay(MutationType.PUT, m, nonceGroup, nonce));
         }
       }
@@ -2358,9 +2358,9 @@ public class WALSplitter {
 
     // reconstruct WALKey
     if (logEntry != null) {
-      org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey walKeyProto = entry.getKey();
+      org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit walKeyProto = entry.getEdit();
       List<UUID> clusterIds = new ArrayList<UUID>(walKeyProto.getClusterIdsCount());
-      for (HBaseProtos.UUID uuid : entry.getKey().getClusterIdsList()) {
+      for (HBaseProtos.UUID uuid : entry.getEdit().getClusterIdsList()) {
         clusterIds.add(new UUID(uuid.getMostSigBits(), uuid.getLeastSigBits()));
       }
       key = new WALKey(walKeyProto.getEncodedRegionName().toByteArray(), TableName.valueOf(

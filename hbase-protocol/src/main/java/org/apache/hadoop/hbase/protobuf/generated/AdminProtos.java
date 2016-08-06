@@ -15947,19 +15947,19 @@ public final class AdminProtos {
   public interface WALEntryOrBuilder
       extends com.google.protobuf.MessageOrBuilder {
 
-    // required .hbase.pb.WALKey key = 1;
+    // required .hbase.pb.WALEdit edit = 1;
     /**
-     * <code>required .hbase.pb.WALKey key = 1;</code>
+     * <code>required .hbase.pb.WALEdit edit = 1;</code>
      */
-    boolean hasKey();
+    boolean hasEdit();
     /**
-     * <code>required .hbase.pb.WALKey key = 1;</code>
+     * <code>required .hbase.pb.WALEdit edit = 1;</code>
      */
-    org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey getKey();
+    org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit getEdit();
     /**
-     * <code>required .hbase.pb.WALKey key = 1;</code>
+     * <code>required .hbase.pb.WALEdit edit = 1;</code>
      */
-    org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKeyOrBuilder getKeyOrBuilder();
+    org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEditOrBuilder getEditOrBuilder();
 
     // repeated bytes key_value_bytes = 2;
     /**
@@ -16067,14 +16067,14 @@ public final class AdminProtos {
               break;
             }
             case 10: {
-              org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder subBuilder = null;
+              org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.Builder subBuilder = null;
               if (((bitField0_ & 0x00000001) == 0x00000001)) {
-                subBuilder = key_.toBuilder();
+                subBuilder = edit_.toBuilder();
               }
-              key_ = input.readMessage(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.PARSER, extensionRegistry);
+              edit_ = input.readMessage(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.PARSER, extensionRegistry);
               if (subBuilder != null) {
-                subBuilder.mergeFrom(key_);
-                key_ = subBuilder.buildPartial();
+                subBuilder.mergeFrom(edit_);
+                edit_ = subBuilder.buildPartial();
               }
               bitField0_ |= 0x00000001;
               break;
@@ -16135,26 +16135,26 @@ public final class AdminProtos {
     }
 
     private int bitField0_;
-    // required .hbase.pb.WALKey key = 1;
-    public static final int KEY_FIELD_NUMBER = 1;
-    private org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey key_;
+    // required .hbase.pb.WALEdit edit = 1;
+    public static final int EDIT_FIELD_NUMBER = 1;
+    private org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit edit_;
     /**
-     * <code>required .hbase.pb.WALKey key = 1;</code>
+     * <code>required .hbase.pb.WALEdit edit = 1;</code>
      */
-    public boolean hasKey() {
+    public boolean hasEdit() {
       return ((bitField0_ & 0x00000001) == 0x00000001);
     }
     /**
-     * <code>required .hbase.pb.WALKey key = 1;</code>
+     * <code>required .hbase.pb.WALEdit edit = 1;</code>
      */
-    public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey getKey() {
-      return key_;
+    public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit getEdit() {
+      return edit_;
     }
     /**
-     * <code>required .hbase.pb.WALKey key = 1;</code>
+     * <code>required .hbase.pb.WALEdit edit = 1;</code>
      */
-    public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKeyOrBuilder getKeyOrBuilder() {
-      return key_;
+    public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEditOrBuilder getEditOrBuilder() {
+      return edit_;
     }
 
     // repeated bytes key_value_bytes = 2;
@@ -16223,7 +16223,7 @@ public final class AdminProtos {
     }
 
     private void initFields() {
-      key_ = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.getDefaultInstance();
+      edit_ = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.getDefaultInstance();
       keyValueBytes_ = java.util.Collections.emptyList();
       associatedCellCount_ = 0;
     }
@@ -16232,11 +16232,11 @@ public final class AdminProtos {
       byte isInitialized = memoizedIsInitialized;
       if (isInitialized != -1) return isInitialized == 1;
 
-      if (!hasKey()) {
+      if (!hasEdit()) {
         memoizedIsInitialized = 0;
         return false;
       }
-      if (!getKey().isInitialized()) {
+      if (!getEdit().isInitialized()) {
         memoizedIsInitialized = 0;
         return false;
       }
@@ -16248,7 +16248,7 @@ public final class AdminProtos {
                         throws java.io.IOException {
       getSerializedSize();
       if (((bitField0_ & 0x00000001) == 0x00000001)) {
-        output.writeMessage(1, key_);
+        output.writeMessage(1, edit_);
       }
       for (int i = 0; i < keyValueBytes_.size(); i++) {
         output.writeBytes(2, keyValueBytes_.get(i));
@@ -16267,7 +16267,7 @@ public final class AdminProtos {
       size = 0;
       if (((bitField0_ & 0x00000001) == 0x00000001)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(1, key_);
+          .computeMessageSize(1, edit_);
       }
       {
         int dataSize = 0;
@@ -16305,10 +16305,10 @@ public final class AdminProtos {
       org.apache.hadoop.hbase.protobuf.generated.AdminProtos.WALEntry other = (org.apache.hadoop.hbase.protobuf.generated.AdminProtos.WALEntry) obj;
 
       boolean result = true;
-      result = result && (hasKey() == other.hasKey());
-      if (hasKey()) {
-        result = result && getKey()
-            .equals(other.getKey());
+      result = result && (hasEdit() == other.hasEdit());
+      if (hasEdit()) {
+        result = result && getEdit()
+            .equals(other.getEdit());
       }
       result = result && getKeyValueBytesList()
           .equals(other.getKeyValueBytesList());
@@ -16330,9 +16330,9 @@ public final class AdminProtos {
       }
       int hash = 41;
       hash = (19 * hash) + getDescriptorForType().hashCode();
-      if (hasKey()) {
-        hash = (37 * hash) + KEY_FIELD_NUMBER;
-        hash = (53 * hash) + getKey().hashCode();
+      if (hasEdit()) {
+        hash = (37 * hash) + EDIT_FIELD_NUMBER;
+        hash = (53 * hash) + getEdit().hashCode();
       }
       if (getKeyValueBytesCount() > 0) {
         hash = (37 * hash) + KEY_VALUE_BYTES_FIELD_NUMBER;
@@ -16447,7 +16447,7 @@ public final class AdminProtos {
       }
       private void maybeForceBuilderInitialization() {
         if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
-          getKeyFieldBuilder();
+          getEditFieldBuilder();
         }
       }
       private static Builder create() {
@@ -16456,10 +16456,10 @@ public final class AdminProtos {
 
       public Builder clear() {
         super.clear();
-        if (keyBuilder_ == null) {
-          key_ = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.getDefaultInstance();
+        if (editBuilder_ == null) {
+          edit_ = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.getDefaultInstance();
         } else {
-          keyBuilder_.clear();
+          editBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00000001);
         keyValueBytes_ = java.util.Collections.emptyList();
@@ -16497,10 +16497,10 @@ public final class AdminProtos {
         if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
           to_bitField0_ |= 0x00000001;
         }
-        if (keyBuilder_ == null) {
-          result.key_ = key_;
+        if (editBuilder_ == null) {
+          result.edit_ = edit_;
         } else {
-          result.key_ = keyBuilder_.build();
+          result.edit_ = editBuilder_.build();
         }
         if (((bitField0_ & 0x00000002) == 0x00000002)) {
           keyValueBytes_ = java.util.Collections.unmodifiableList(keyValueBytes_);
@@ -16527,8 +16527,8 @@ public final class AdminProtos {
 
       public Builder mergeFrom(org.apache.hadoop.hbase.protobuf.generated.AdminProtos.WALEntry other) {
         if (other == org.apache.hadoop.hbase.protobuf.generated.AdminProtos.WALEntry.getDefaultInstance()) return this;
-        if (other.hasKey()) {
-          mergeKey(other.getKey());
+        if (other.hasEdit()) {
+          mergeEdit(other.getEdit());
         }
         if (!other.keyValueBytes_.isEmpty()) {
           if (keyValueBytes_.isEmpty()) {
@@ -16548,11 +16548,11 @@ public final class AdminProtos {
       }
 
       public final boolean isInitialized() {
-        if (!hasKey()) {
+        if (!hasEdit()) {
           
           return false;
         }
-        if (!getKey().isInitialized()) {
+        if (!getEdit().isInitialized()) {
           
           return false;
         }
@@ -16578,121 +16578,121 @@ public final class AdminProtos {
       }
       private int bitField0_;
 
-      // required .hbase.pb.WALKey key = 1;
-      private org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey key_ = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.getDefaultInstance();
+      // required .hbase.pb.WALEdit edit = 1;
+      private org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit edit_ = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.getDefaultInstance();
       private com.google.protobuf.SingleFieldBuilder<
-          org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKeyOrBuilder> keyBuilder_;
+          org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.Builder, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEditOrBuilder> editBuilder_;
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
-      public boolean hasKey() {
+      public boolean hasEdit() {
         return ((bitField0_ & 0x00000001) == 0x00000001);
       }
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
-      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey getKey() {
-        if (keyBuilder_ == null) {
-          return key_;
+      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit getEdit() {
+        if (editBuilder_ == null) {
+          return edit_;
         } else {
-          return keyBuilder_.getMessage();
+          return editBuilder_.getMessage();
         }
       }
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
-      public Builder setKey(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey value) {
-        if (keyBuilder_ == null) {
+      public Builder setEdit(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit value) {
+        if (editBuilder_ == null) {
           if (value == null) {
             throw new NullPointerException();
           }
-          key_ = value;
+          edit_ = value;
           onChanged();
         } else {
-          keyBuilder_.setMessage(value);
+          editBuilder_.setMessage(value);
         }
         bitField0_ |= 0x00000001;
         return this;
       }
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
-      public Builder setKey(
-          org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder builderForValue) {
-        if (keyBuilder_ == null) {
-          key_ = builderForValue.build();
+      public Builder setEdit(
+          org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.Builder builderForValue) {
+        if (editBuilder_ == null) {
+          edit_ = builderForValue.build();
           onChanged();
         } else {
-          keyBuilder_.setMessage(builderForValue.build());
+          editBuilder_.setMessage(builderForValue.build());
         }
         bitField0_ |= 0x00000001;
         return this;
       }
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
-      public Builder mergeKey(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey value) {
-        if (keyBuilder_ == null) {
+      public Builder mergeEdit(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit value) {
+        if (editBuilder_ == null) {
           if (((bitField0_ & 0x00000001) == 0x00000001) &&
-              key_ != org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.getDefaultInstance()) {
-            key_ =
-              org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.newBuilder(key_).mergeFrom(value).buildPartial();
+              edit_ != org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.getDefaultInstance()) {
+            edit_ =
+              org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.newBuilder(edit_).mergeFrom(value).buildPartial();
           } else {
-            key_ = value;
+            edit_ = value;
           }
           onChanged();
         } else {
-          keyBuilder_.mergeFrom(value);
+          editBuilder_.mergeFrom(value);
         }
         bitField0_ |= 0x00000001;
         return this;
       }
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
-      public Builder clearKey() {
-        if (keyBuilder_ == null) {
-          key_ = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.getDefaultInstance();
+      public Builder clearEdit() {
+        if (editBuilder_ == null) {
+          edit_ = org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.getDefaultInstance();
           onChanged();
         } else {
-          keyBuilder_.clear();
+          editBuilder_.clear();
         }
         bitField0_ = (bitField0_ & ~0x00000001);
         return this;
       }
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
-      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder getKeyBuilder() {
+      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.Builder getEditBuilder() {
         bitField0_ |= 0x00000001;
         onChanged();
-        return getKeyFieldBuilder().getBuilder();
+        return getEditFieldBuilder().getBuilder();
       }
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
-      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKeyOrBuilder getKeyOrBuilder() {
-        if (keyBuilder_ != null) {
-          return keyBuilder_.getMessageOrBuilder();
+      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEditOrBuilder getEditOrBuilder() {
+        if (editBuilder_ != null) {
+          return editBuilder_.getMessageOrBuilder();
         } else {
-          return key_;
+          return edit_;
         }
       }
       /**
-       * <code>required .hbase.pb.WALKey key = 1;</code>
+       * <code>required .hbase.pb.WALEdit edit = 1;</code>
        */
       private com.google.protobuf.SingleFieldBuilder<
-          org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKeyOrBuilder> 
-          getKeyFieldBuilder() {
-        if (keyBuilder_ == null) {
-          keyBuilder_ = new com.google.protobuf.SingleFieldBuilder<
-              org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKeyOrBuilder>(
-                  key_,
+          org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.Builder, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEditOrBuilder> 
+          getEditFieldBuilder() {
+        if (editBuilder_ == null) {
+          editBuilder_ = new com.google.protobuf.SingleFieldBuilder<
+              org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.Builder, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEditOrBuilder>(
+                  edit_,
                   getParentForChildren(),
                   isClean());
-          key_ = null;
+          edit_ = null;
         }
-        return keyBuilder_;
+        return editBuilder_;
       }
 
       // repeated bytes key_value_bytes = 2;
@@ -24034,61 +24034,61 @@ public final class AdminProtos {
       "\002(\0132\031.hbase.pb.RegionSpecifier\022+\n\010region" +
       "_b\030\002 \002(\0132\031.hbase.pb.RegionSpecifier\022\027\n\010f" +
       "orcible\030\003 \001(\010:\005false\022\032\n\022master_system_ti" +
-      "me\030\004 \001(\004\"\026\n\024MergeRegionsResponse\"a\n\010WALE" +
-      "ntry\022\035\n\003key\030\001 \002(\0132\020.hbase.pb.WALKey\022\027\n\017k" +
-      "ey_value_bytes\030\002 \003(\014\022\035\n\025associated_cell_",
-      "count\030\003 \001(\005\"\242\001\n\030ReplicateWALEntryRequest" +
-      "\022!\n\005entry\030\001 \003(\0132\022.hbase.pb.WALEntry\022\034\n\024r" +
-      "eplicationClusterId\030\002 \001(\t\022\"\n\032sourceBaseN" +
-      "amespaceDirPath\030\003 \001(\t\022!\n\031sourceHFileArch" +
-      "iveDirPath\030\004 \001(\t\"\033\n\031ReplicateWALEntryRes" +
-      "ponse\"\026\n\024RollWALWriterRequest\"0\n\025RollWAL" +
-      "WriterResponse\022\027\n\017region_to_flush\030\001 \003(\014\"" +
-      "#\n\021StopServerRequest\022\016\n\006reason\030\001 \002(\t\"\024\n\022" +
-      "StopServerResponse\"\026\n\024GetServerInfoReque" +
-      "st\"K\n\nServerInfo\022)\n\013server_name\030\001 \002(\0132\024.",
-      "hbase.pb.ServerName\022\022\n\nwebui_port\030\002 \001(\r\"" +
-      "B\n\025GetServerInfoResponse\022)\n\013server_info\030" +
-      "\001 \002(\0132\024.hbase.pb.ServerInfo\"\034\n\032UpdateCon" +
-      "figurationRequest\"\035\n\033UpdateConfiguration" +
-      "Response2\207\013\n\014AdminService\022P\n\rGetRegionIn" +
-      "fo\022\036.hbase.pb.GetRegionInfoRequest\032\037.hba" +
-      "se.pb.GetRegionInfoResponse\022M\n\014GetStoreF" +
-      "ile\022\035.hbase.pb.GetStoreFileRequest\032\036.hba" +
-      "se.pb.GetStoreFileResponse\022V\n\017GetOnlineR" +
-      "egion\022 .hbase.pb.GetOnlineRegionRequest\032",
-      "!.hbase.pb.GetOnlineRegionResponse\022G\n\nOp" +
-      "enRegion\022\033.hbase.pb.OpenRegionRequest\032\034." +
-      "hbase.pb.OpenRegionResponse\022M\n\014WarmupReg" +
-      "ion\022\035.hbase.pb.WarmupRegionRequest\032\036.hba" +
-      "se.pb.WarmupRegionResponse\022J\n\013CloseRegio" +
-      "n\022\034.hbase.pb.CloseRegionRequest\032\035.hbase." +
-      "pb.CloseRegionResponse\022J\n\013FlushRegion\022\034." +
-      "hbase.pb.FlushRegionRequest\032\035.hbase.pb.F" +
-      "lushRegionResponse\022J\n\013SplitRegion\022\034.hbas" +
-      "e.pb.SplitRegionRequest\032\035.hbase.pb.Split",
-      "RegionResponse\022P\n\rCompactRegion\022\036.hbase." +
-      "pb.CompactRegionRequest\032\037.hbase.pb.Compa" +
-      "ctRegionResponse\022M\n\014MergeRegions\022\035.hbase" +
-      ".pb.MergeRegionsRequest\032\036.hbase.pb.Merge" +
-      "RegionsResponse\022\\\n\021ReplicateWALEntry\022\".h" +
-      "base.pb.ReplicateWALEntryRequest\032#.hbase" +
-      ".pb.ReplicateWALEntryResponse\022Q\n\006Replay\022" +
-      "\".hbase.pb.ReplicateWALEntryRequest\032#.hb" +
-      "ase.pb.ReplicateWALEntryResponse\022P\n\rRoll" +
-      "WALWriter\022\036.hbase.pb.RollWALWriterReques",
-      "t\032\037.hbase.pb.RollWALWriterResponse\022P\n\rGe" +
-      "tServerInfo\022\036.hbase.pb.GetServerInfoRequ" +
-      "est\032\037.hbase.pb.GetServerInfoResponse\022G\n\n" +
-      "StopServer\022\033.hbase.pb.StopServerRequest\032" +
-      "\034.hbase.pb.StopServerResponse\022_\n\022UpdateF" +
-      "avoredNodes\022#.hbase.pb.UpdateFavoredNode" +
-      "sRequest\032$.hbase.pb.UpdateFavoredNodesRe" +
-      "sponse\022b\n\023UpdateConfiguration\022$.hbase.pb" +
-      ".UpdateConfigurationRequest\032%.hbase.pb.U" +
-      "pdateConfigurationResponseBA\n*org.apache",
-      ".hadoop.hbase.protobuf.generatedB\013AdminP" +
-      "rotosH\001\210\001\001\240\001\001"
+      "me\030\004 \001(\004\"\026\n\024MergeRegionsResponse\"c\n\010WALE" +
+      "ntry\022\037\n\004edit\030\001 \002(\0132\021.hbase.pb.WALEdit\022\027\n" +
+      "\017key_value_bytes\030\002 \003(\014\022\035\n\025associated_cel",
+      "l_count\030\003 \001(\005\"\242\001\n\030ReplicateWALEntryReque" +
+      "st\022!\n\005entry\030\001 \003(\0132\022.hbase.pb.WALEntry\022\034\n" +
+      "\024replicationClusterId\030\002 \001(\t\022\"\n\032sourceBas" +
+      "eNamespaceDirPath\030\003 \001(\t\022!\n\031sourceHFileAr" +
+      "chiveDirPath\030\004 \001(\t\"\033\n\031ReplicateWALEntryR" +
+      "esponse\"\026\n\024RollWALWriterRequest\"0\n\025RollW" +
+      "ALWriterResponse\022\027\n\017region_to_flush\030\001 \003(" +
+      "\014\"#\n\021StopServerRequest\022\016\n\006reason\030\001 \002(\t\"\024" +
+      "\n\022StopServerResponse\"\026\n\024GetServerInfoReq" +
+      "uest\"K\n\nServerInfo\022)\n\013server_name\030\001 \002(\0132",
+      "\024.hbase.pb.ServerName\022\022\n\nwebui_port\030\002 \001(" +
+      "\r\"B\n\025GetServerInfoResponse\022)\n\013server_inf" +
+      "o\030\001 \002(\0132\024.hbase.pb.ServerInfo\"\034\n\032UpdateC" +
+      "onfigurationRequest\"\035\n\033UpdateConfigurati" +
+      "onResponse2\207\013\n\014AdminService\022P\n\rGetRegion" +
+      "Info\022\036.hbase.pb.GetRegionInfoRequest\032\037.h" +
+      "base.pb.GetRegionInfoResponse\022M\n\014GetStor" +
+      "eFile\022\035.hbase.pb.GetStoreFileRequest\032\036.h" +
+      "base.pb.GetStoreFileResponse\022V\n\017GetOnlin" +
+      "eRegion\022 .hbase.pb.GetOnlineRegionReques",
+      "t\032!.hbase.pb.GetOnlineRegionResponse\022G\n\n" +
+      "OpenRegion\022\033.hbase.pb.OpenRegionRequest\032" +
+      "\034.hbase.pb.OpenRegionResponse\022M\n\014WarmupR" +
+      "egion\022\035.hbase.pb.WarmupRegionRequest\032\036.h" +
+      "base.pb.WarmupRegionResponse\022J\n\013CloseReg" +
+      "ion\022\034.hbase.pb.CloseRegionRequest\032\035.hbas" +
+      "e.pb.CloseRegionResponse\022J\n\013FlushRegion\022" +
+      "\034.hbase.pb.FlushRegionRequest\032\035.hbase.pb" +
+      ".FlushRegionResponse\022J\n\013SplitRegion\022\034.hb" +
+      "ase.pb.SplitRegionRequest\032\035.hbase.pb.Spl",
+      "itRegionResponse\022P\n\rCompactRegion\022\036.hbas" +
+      "e.pb.CompactRegionRequest\032\037.hbase.pb.Com" +
+      "pactRegionResponse\022M\n\014MergeRegions\022\035.hba" +
+      "se.pb.MergeRegionsRequest\032\036.hbase.pb.Mer" +
+      "geRegionsResponse\022\\\n\021ReplicateWALEntry\022\"" +
+      ".hbase.pb.ReplicateWALEntryRequest\032#.hba" +
+      "se.pb.ReplicateWALEntryResponse\022Q\n\006Repla" +
+      "y\022\".hbase.pb.ReplicateWALEntryRequest\032#." +
+      "hbase.pb.ReplicateWALEntryResponse\022P\n\rRo" +
+      "llWALWriter\022\036.hbase.pb.RollWALWriterRequ",
+      "est\032\037.hbase.pb.RollWALWriterResponse\022P\n\r" +
+      "GetServerInfo\022\036.hbase.pb.GetServerInfoRe" +
+      "quest\032\037.hbase.pb.GetServerInfoResponse\022G" +
+      "\n\nStopServer\022\033.hbase.pb.StopServerReques" +
+      "t\032\034.hbase.pb.StopServerResponse\022_\n\022Updat" +
+      "eFavoredNodes\022#.hbase.pb.UpdateFavoredNo" +
+      "desRequest\032$.hbase.pb.UpdateFavoredNodes" +
+      "Response\022b\n\023UpdateConfiguration\022$.hbase." +
+      "pb.UpdateConfigurationRequest\032%.hbase.pb" +
+      ".UpdateConfigurationResponseBA\n*org.apac",
+      "he.hadoop.hbase.protobuf.generatedB\013Admi" +
+      "nProtosH\001\210\001\001\240\001\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -24244,7 +24244,7 @@ public final class AdminProtos {
           internal_static_hbase_pb_WALEntry_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_hbase_pb_WALEntry_descriptor,
-              new java.lang.String[] { "Key", "KeyValueBytes", "AssociatedCellCount", });
+              new java.lang.String[] { "Edit", "KeyValueBytes", "AssociatedCellCount", });
           internal_static_hbase_pb_ReplicateWALEntryRequest_descriptor =
             getDescriptor().getMessageTypes().get(23);
           internal_static_hbase_pb_ReplicateWALEntryRequest_fieldAccessorTable = new

@@ -39,7 +39,6 @@ import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALHeader.Builder;
-import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey;
 import org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALTrailer;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.wal.WAL.Entry;
@@ -93,7 +92,7 @@ public class ProtobufLogReader extends ReaderBase {
     writerClsNames.add(ProtobufLogWriter.class.getSimpleName());
     writerClsNames.add(AsyncProtobufLogWriter.class.getSimpleName());
   }
-  
+
   // cell codec classname
   private String codecClsName = null;
 
@@ -102,12 +101,12 @@ public class ProtobufLogReader extends ReaderBase {
     SUCCESS,
     UNKNOWN_WRITER_CLS     // name of writer class isn't recognized
   }
-  
+
   // context for WALHdr carrying information such as Cell Codec classname
   static class WALHdrContext {
     WALHdrResult result;
     String cellCodecClsName;
-    
+
     WALHdrContext(WALHdrResult result, String cellCodecClsName) {
       this.result = result;
       this.cellCodecClsName = cellCodecClsName;
@@ -161,7 +160,7 @@ public class ProtobufLogReader extends ReaderBase {
   public List<String> getWriterClsNames() {
     return writerClsNames;
   }
-  
+
   /*
    * Returns the cell codec classname
    */
@@ -219,9 +218,9 @@ public class ProtobufLogReader extends ReaderBase {
       LOG.trace("After reading the trailer: walEditsStopOffset: " + this.walEditsStopOffset
           + ", fileLength: " + this.fileLength + ", " + "trailerPresent: " + trailerPresent);
     }
-    
+
     codecClsName = hdrCtxt.getCellCodecClsName();
-    
+
     return hdrCtxt.getCellCodecClsName();
   }
 
@@ -287,7 +286,7 @@ public class ProtobufLogReader extends ReaderBase {
   protected void initAfterCompression() throws IOException {
     initAfterCompression(null);
   }
-  
+
   @Override
   protected void initAfterCompression(String cellCodecClsName) throws IOException {
     WALCellCodec codec = getCodec(this.conf, cellCodecClsName, this.compressionContext);
@@ -315,7 +314,7 @@ public class ProtobufLogReader extends ReaderBase {
       if (trailerPresent && originalPosition > 0 && originalPosition == this.walEditsStopOffset) {
         return false;
       }
-      WALKey.Builder builder = WALKey.newBuilder();
+      WALProtos.WALEdit.Builder builder = WALProtos.WALEdit.newBuilder();
       long size = 0;
       try {
         long available = -1;
@@ -345,13 +344,13 @@ public class ProtobufLogReader extends ReaderBase {
           throw new EOFException("Partial PB while reading WAL, " +
               "probably an unexpected EOF, ignoring");
         }
-        WALKey walKey = builder.build();
-        entry.getKey().readFieldsFromPb(walKey, this.byteStringUncompressor);
-        if (!walKey.hasFollowingKvCount() || 0 == walKey.getFollowingKvCount()) {
+        WALProtos.WALEdit walEdit = builder.build();
+        entry.getKey().readFieldsFromPb(walEdit, this.byteStringUncompressor);
+        if (!walEdit.hasFollowingKvCount() || 0 == walEdit.getFollowingKvCount()) {
           LOG.trace("WALKey has no KVs that follow it; trying the next one");
           continue;
         }
-        int expectedCells = walKey.getFollowingKvCount();
+        int expectedCells = walEdit.getFollowingKvCount();
         long posBefore = this.inputStream.getPos();
         try {
           int actualCells = entry.getEdit().readFromCells(cellDecoder, expectedCells);

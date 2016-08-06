@@ -1046,7 +1046,7 @@ public final class WALProtos {
     // @@protoc_insertion_point(class_scope:hbase.pb.WALHeader)
   }
 
-  public interface WALKeyOrBuilder
+  public interface WALEditOrBuilder
       extends com.google.protobuf.MessageOrBuilder {
 
     // required bytes encoded_region_name = 1;
@@ -1248,30 +1248,29 @@ public final class WALProtos {
     long getOrigSequenceNumber();
   }
   /**
-   * Protobuf type {@code hbase.pb.WALKey}
+   * Protobuf type {@code hbase.pb.WALEdit}
    *
    * <pre>
    *
-   * Protocol buffer version of WALKey; see WALKey comment, not really a key but WALEdit header
-   * for some KVs
+   * Protocol buffer version of WALEdit;
    * </pre>
    */
-  public static final class WALKey extends
+  public static final class WALEdit extends
       com.google.protobuf.GeneratedMessage
-      implements WALKeyOrBuilder {
-    // Use WALKey.newBuilder() to construct.
-    private WALKey(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
+      implements WALEditOrBuilder {
+    // Use WALEdit.newBuilder() to construct.
+    private WALEdit(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
       super(builder);
       this.unknownFields = builder.getUnknownFields();
     }
-    private WALKey(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
+    private WALEdit(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
 
-    private static final WALKey defaultInstance;
-    public static WALKey getDefaultInstance() {
+    private static final WALEdit defaultInstance;
+    public static WALEdit getDefaultInstance() {
       return defaultInstance;
     }
 
-    public WALKey getDefaultInstanceForType() {
+    public WALEdit getDefaultInstanceForType() {
       return defaultInstance;
     }
 
@@ -1281,7 +1280,7 @@ public final class WALProtos {
         getUnknownFields() {
       return this.unknownFields;
     }
-    private WALKey(
+    private WALEdit(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
@@ -1393,28 +1392,28 @@ public final class WALProtos {
     }
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALKey_descriptor;
+      return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALEdit_descriptor;
     }
 
     protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALKey_fieldAccessorTable
+      return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALEdit_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.class, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder.class);
+              org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.class, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.Builder.class);
     }
 
-    public static com.google.protobuf.Parser<WALKey> PARSER =
-        new com.google.protobuf.AbstractParser<WALKey>() {
-      public WALKey parsePartialFrom(
+    public static com.google.protobuf.Parser<WALEdit> PARSER =
+        new com.google.protobuf.AbstractParser<WALEdit>() {
+      public WALEdit parsePartialFrom(
           com.google.protobuf.CodedInputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws com.google.protobuf.InvalidProtocolBufferException {
-        return new WALKey(input, extensionRegistry);
+        return new WALEdit(input, extensionRegistry);
       }
     };
 
     @java.lang.Override
-    public com.google.protobuf.Parser<WALKey> getParserForType() {
+    public com.google.protobuf.Parser<WALEdit> getParserForType() {
       return PARSER;
     }
 
@@ -1857,10 +1856,10 @@ public final class WALProtos {
       if (obj == this) {
        return true;
       }
-      if (!(obj instanceof org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey)) {
+      if (!(obj instanceof org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit)) {
         return super.equals(obj);
       }
-      org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey other = (org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey) obj;
+      org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit other = (org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit) obj;
 
       boolean result = true;
       result = result && (hasEncodedRegionName() == other.hasEncodedRegionName());
@@ -1974,53 +1973,53 @@ public final class WALProtos {
       return hash;
     }
 
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseFrom(
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseFrom(
         com.google.protobuf.ByteString data)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return PARSER.parseFrom(data);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseFrom(
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseFrom(
         com.google.protobuf.ByteString data,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return PARSER.parseFrom(data, extensionRegistry);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseFrom(byte[] data)
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseFrom(byte[] data)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return PARSER.parseFrom(data);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseFrom(
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseFrom(
         byte[] data,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return PARSER.parseFrom(data, extensionRegistry);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseFrom(java.io.InputStream input)
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseFrom(java.io.InputStream input)
         throws java.io.IOException {
       return PARSER.parseFrom(input);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseFrom(
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseFrom(
         java.io.InputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
       return PARSER.parseFrom(input, extensionRegistry);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseDelimitedFrom(java.io.InputStream input)
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseDelimitedFrom(java.io.InputStream input)
         throws java.io.IOException {
       return PARSER.parseDelimitedFrom(input);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseDelimitedFrom(
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseDelimitedFrom(
         java.io.InputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
       return PARSER.parseDelimitedFrom(input, extensionRegistry);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseFrom(
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseFrom(
         com.google.protobuf.CodedInputStream input)
         throws java.io.IOException {
       return PARSER.parseFrom(input);
     }
-    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parseFrom(
+    public static org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parseFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
@@ -2029,7 +2028,7 @@ public final class WALProtos {
 
     public static Builder newBuilder() { return Builder.create(); }
     public Builder newBuilderForType() { return newBuilder(); }
-    public static Builder newBuilder(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey prototype) {
+    public static Builder newBuilder(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit prototype) {
       return newBuilder().mergeFrom(prototype);
     }
     public Builder toBuilder() { return newBuilder(this); }
@@ -2041,30 +2040,29 @@ public final class WALProtos {
       return builder;
     }
     /**
-     * Protobuf type {@code hbase.pb.WALKey}
+     * Protobuf type {@code hbase.pb.WALEdit}
      *
      * <pre>
      *
-     * Protocol buffer version of WALKey; see WALKey comment, not really a key but WALEdit header
-     * for some KVs
+     * Protocol buffer version of WALEdit;
      * </pre>
      */
     public static final class Builder extends
         com.google.protobuf.GeneratedMessage.Builder<Builder>
-       implements org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKeyOrBuilder {
+       implements org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEditOrBuilder {
       public static final com.google.protobuf.Descriptors.Descriptor
           getDescriptor() {
-        return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALKey_descriptor;
+        return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALEdit_descriptor;
       }
 
       protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
           internalGetFieldAccessorTable() {
-        return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALKey_fieldAccessorTable
+        return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALEdit_fieldAccessorTable
             .ensureFieldAccessorsInitialized(
-                org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.class, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.Builder.class);
+                org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.class, org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.Builder.class);
       }
 
-      // Construct using org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.newBuilder()
+      // Construct using org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.newBuilder()
       private Builder() {
         maybeForceBuilderInitialization();
       }
@@ -2130,23 +2128,23 @@ public final class WALProtos {
 
       public com.google.protobuf.Descriptors.Descriptor
           getDescriptorForType() {
-        return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALKey_descriptor;
+        return org.apache.hadoop.hbase.protobuf.generated.WALProtos.internal_static_hbase_pb_WALEdit_descriptor;
       }
 
-      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey getDefaultInstanceForType() {
-        return org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.getDefaultInstance();
+      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit getDefaultInstanceForType() {
+        return org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.getDefaultInstance();
       }
 
-      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey build() {
-        org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey result = buildPartial();
+      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit build() {
+        org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit result = buildPartial();
         if (!result.isInitialized()) {
           throw newUninitializedMessageException(result);
         }
         return result;
       }
 
-      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey buildPartial() {
-        org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey result = new org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey(this);
+      public org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit buildPartial() {
+        org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit result = new org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit(this);
         int from_bitField0_ = bitField0_;
         int to_bitField0_ = 0;
         if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
@@ -2213,16 +2211,16 @@ public final class WALProtos {
       }
 
       public Builder mergeFrom(com.google.protobuf.Message other) {
-        if (other instanceof org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey) {
-          return mergeFrom((org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey)other);
+        if (other instanceof org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit) {
+          return mergeFrom((org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit)other);
         } else {
           super.mergeFrom(other);
           return this;
         }
       }
 
-      public Builder mergeFrom(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey other) {
-        if (other == org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey.getDefaultInstance()) return this;
+      public Builder mergeFrom(org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit other) {
+        if (other == org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit.getDefaultInstance()) return this;
         if (other.hasEncodedRegionName()) {
           setEncodedRegionName(other.getEncodedRegionName());
         }
@@ -2348,11 +2346,11 @@ public final class WALProtos {
           com.google.protobuf.CodedInputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws java.io.IOException {
-        org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey parsedMessage = null;
+        org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit parsedMessage = null;
         try {
           parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
         } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-          parsedMessage = (org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALKey) e.getUnfinishedMessage();
+          parsedMessage = (org.apache.hadoop.hbase.protobuf.generated.WALProtos.WALEdit) e.getUnfinishedMessage();
           throw e;
         } finally {
           if (parsedMessage != null) {
@@ -3410,15 +3408,15 @@ public final class WALProtos {
         return this;
       }
 
-      // @@protoc_insertion_point(builder_scope:hbase.pb.WALKey)
+      // @@protoc_insertion_point(builder_scope:hbase.pb.WALEdit)
     }
 
     static {
-      defaultInstance = new WALKey(true);
+      defaultInstance = new WALEdit(true);
       defaultInstance.initFields();
     }
 
-    // @@protoc_insertion_point(class_scope:hbase.pb.WALKey)
+    // @@protoc_insertion_point(class_scope:hbase.pb.WALEdit)
   }
 
   public interface FamilyScopeOrBuilder
@@ -11925,10 +11923,10 @@ public final class WALProtos {
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
       internal_static_hbase_pb_WALHeader_fieldAccessorTable;
   private static com.google.protobuf.Descriptors.Descriptor
-    internal_static_hbase_pb_WALKey_descriptor;
+    internal_static_hbase_pb_WALEdit_descriptor;
   private static
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
-      internal_static_hbase_pb_WALKey_fieldAccessorTable;
+      internal_static_hbase_pb_WALEdit_fieldAccessorTable;
   private static com.google.protobuf.Descriptors.Descriptor
     internal_static_hbase_pb_FamilyScope_descriptor;
   private static
@@ -11982,52 +11980,52 @@ public final class WALProtos {
       "ALHeader\022\027\n\017has_compression\030\001 \001(\010\022\026\n\016enc" +
       "ryption_key\030\002 \001(\014\022\033\n\023has_tag_compression" +
       "\030\003 \001(\010\022\027\n\017writer_cls_name\030\004 \001(\t\022\033\n\023cell_" +
-      "codec_cls_name\030\005 \001(\t\"\273\002\n\006WALKey\022\033\n\023encod" +
-      "ed_region_name\030\001 \002(\014\022\022\n\ntable_name\030\002 \002(\014" +
-      "\022\033\n\023log_sequence_number\030\003 \002(\004\022\022\n\nwrite_t" +
-      "ime\030\004 \002(\004\022&\n\ncluster_id\030\005 \001(\0132\016.hbase.pb" +
-      ".UUIDB\002\030\001\022%\n\006scopes\030\006 \003(\0132\025.hbase.pb.Fam" +
-      "ilyScope\022\032\n\022following_kv_count\030\007 \001(\r\022#\n\013",
-      "cluster_ids\030\010 \003(\0132\016.hbase.pb.UUID\022\022\n\nnon" +
-      "ceGroup\030\t \001(\004\022\r\n\005nonce\030\n \001(\004\022\034\n\024orig_seq" +
-      "uence_number\030\013 \001(\004\"F\n\013FamilyScope\022\016\n\006fam" +
-      "ily\030\001 \002(\014\022\'\n\nscope_type\030\002 \002(\0162\023.hbase.pb" +
-      ".ScopeType\"\276\001\n\024CompactionDescriptor\022\022\n\nt" +
-      "able_name\030\001 \002(\014\022\033\n\023encoded_region_name\030\002" +
-      " \002(\014\022\023\n\013family_name\030\003 \002(\014\022\030\n\020compaction_" +
-      "input\030\004 \003(\t\022\031\n\021compaction_output\030\005 \003(\t\022\026" +
-      "\n\016store_home_dir\030\006 \002(\t\022\023\n\013region_name\030\007 " +
-      "\001(\014\"\244\003\n\017FlushDescriptor\0225\n\006action\030\001 \002(\0162",
-      "%.hbase.pb.FlushDescriptor.FlushAction\022\022" +
-      "\n\ntable_name\030\002 \002(\014\022\033\n\023encoded_region_nam" +
-      "e\030\003 \002(\014\022\035\n\025flush_sequence_number\030\004 \001(\004\022E" +
-      "\n\rstore_flushes\030\005 \003(\0132..hbase.pb.FlushDe" +
-      "scriptor.StoreFlushDescriptor\022\023\n\013region_" +
-      "name\030\006 \001(\014\032Y\n\024StoreFlushDescriptor\022\023\n\013fa" +
-      "mily_name\030\001 \002(\014\022\026\n\016store_home_dir\030\002 \002(\t\022" +
-      "\024\n\014flush_output\030\003 \003(\t\"S\n\013FlushAction\022\017\n\013" +
-      "START_FLUSH\020\000\022\020\n\014COMMIT_FLUSH\020\001\022\017\n\013ABORT" +
-      "_FLUSH\020\002\022\020\n\014CANNOT_FLUSH\020\003\"q\n\017StoreDescr",
-      "iptor\022\023\n\013family_name\030\001 \002(\014\022\026\n\016store_home" +
-      "_dir\030\002 \002(\t\022\022\n\nstore_file\030\003 \003(\t\022\035\n\025store_" +
-      "file_size_bytes\030\004 \001(\004\"\237\001\n\022BulkLoadDescri" +
-      "ptor\022\'\n\ntable_name\030\001 \002(\0132\023.hbase.pb.Tabl" +
-      "eName\022\033\n\023encoded_region_name\030\002 \002(\014\022)\n\006st" +
-      "ores\030\003 \003(\0132\031.hbase.pb.StoreDescriptor\022\030\n" +
-      "\020bulkload_seq_num\030\004 \002(\003\"\272\002\n\025RegionEventD" +
-      "escriptor\022=\n\nevent_type\030\001 \002(\0162).hbase.pb" +
-      ".RegionEventDescriptor.EventType\022\022\n\ntabl" +
-      "e_name\030\002 \002(\014\022\033\n\023encoded_region_name\030\003 \002(",
-      "\014\022\033\n\023log_sequence_number\030\004 \001(\004\022)\n\006stores" +
-      "\030\005 \003(\0132\031.hbase.pb.StoreDescriptor\022$\n\006ser" +
-      "ver\030\006 \001(\0132\024.hbase.pb.ServerName\022\023\n\013regio" +
-      "n_name\030\007 \001(\014\".\n\tEventType\022\017\n\013REGION_OPEN" +
-      "\020\000\022\020\n\014REGION_CLOSE\020\001\"\014\n\nWALTrailer*d\n\tSc" +
-      "opeType\022\033\n\027REPLICATION_SCOPE_LOCAL\020\000\022\034\n\030" +
-      "REPLICATION_SCOPE_GLOBAL\020\001\022\034\n\030REPLICATIO" +
-      "N_SCOPE_SERIAL\020\002B?\n*org.apache.hadoop.hb" +
-      "ase.protobuf.generatedB\tWALProtosH\001\210\001\000\240\001" +
-      "\001"
+      "codec_cls_name\030\005 \001(\t\"\274\002\n\007WALEdit\022\033\n\023enco" +
+      "ded_region_name\030\001 \002(\014\022\022\n\ntable_name\030\002 \002(" +
+      "\014\022\033\n\023log_sequence_number\030\003 \002(\004\022\022\n\nwrite_" +
+      "time\030\004 \002(\004\022&\n\ncluster_id\030\005 \001(\0132\016.hbase.p" +
+      "b.UUIDB\002\030\001\022%\n\006scopes\030\006 \003(\0132\025.hbase.pb.Fa" +
+      "milyScope\022\032\n\022following_kv_count\030\007 \001(\r\022#\n",
+      "\013cluster_ids\030\010 \003(\0132\016.hbase.pb.UUID\022\022\n\nno" +
+      "nceGroup\030\t \001(\004\022\r\n\005nonce\030\n \001(\004\022\034\n\024orig_se" +
+      "quence_number\030\013 \001(\004\"F\n\013FamilyScope\022\016\n\006fa" +
+      "mily\030\001 \002(\014\022\'\n\nscope_type\030\002 \002(\0162\023.hbase.p" +
+      "b.ScopeType\"\276\001\n\024CompactionDescriptor\022\022\n\n" +
+      "table_name\030\001 \002(\014\022\033\n\023encoded_region_name\030" +
+      "\002 \002(\014\022\023\n\013family_name\030\003 \002(\014\022\030\n\020compaction" +
+      "_input\030\004 \003(\t\022\031\n\021compaction_output\030\005 \003(\t\022" +
+      "\026\n\016store_home_dir\030\006 \002(\t\022\023\n\013region_name\030\007" +
+      " \001(\014\"\244\003\n\017FlushDescriptor\0225\n\006action\030\001 \002(\016",
+      "2%.hbase.pb.FlushDescriptor.FlushAction\022" +
+      "\022\n\ntable_name\030\002 \002(\014\022\033\n\023encoded_region_na" +
+      "me\030\003 \002(\014\022\035\n\025flush_sequence_number\030\004 \001(\004\022" +
+      "E\n\rstore_flushes\030\005 \003(\0132..hbase.pb.FlushD" +
+      "escriptor.StoreFlushDescriptor\022\023\n\013region" +
+      "_name\030\006 \001(\014\032Y\n\024StoreFlushDescriptor\022\023\n\013f" +
+      "amily_name\030\001 \002(\014\022\026\n\016store_home_dir\030\002 \002(\t" +
+      "\022\024\n\014flush_output\030\003 \003(\t\"S\n\013FlushAction\022\017\n" +
+      "\013START_FLUSH\020\000\022\020\n\014COMMIT_FLUSH\020\001\022\017\n\013ABOR" +
+      "T_FLUSH\020\002\022\020\n\014CANNOT_FLUSH\020\003\"q\n\017StoreDesc",
+      "riptor\022\023\n\013family_name\030\001 \002(\014\022\026\n\016store_hom" +
+      "e_dir\030\002 \002(\t\022\022\n\nstore_file\030\003 \003(\t\022\035\n\025store" +
+      "_file_size_bytes\030\004 \001(\004\"\237\001\n\022BulkLoadDescr" +
+      "iptor\022\'\n\ntable_name\030\001 \002(\0132\023.hbase.pb.Tab" +
+      "leName\022\033\n\023encoded_region_name\030\002 \002(\014\022)\n\006s" +
+      "tores\030\003 \003(\0132\031.hbase.pb.StoreDescriptor\022\030" +
+      "\n\020bulkload_seq_num\030\004 \002(\003\"\272\002\n\025RegionEvent" +
+      "Descriptor\022=\n\nevent_type\030\001 \002(\0162).hbase.p" +
+      "b.RegionEventDescriptor.EventType\022\022\n\ntab" +
+      "le_name\030\002 \002(\014\022\033\n\023encoded_region_name\030\003 \002",
+      "(\014\022\033\n\023log_sequence_number\030\004 \001(\004\022)\n\006store" +
+      "s\030\005 \003(\0132\031.hbase.pb.StoreDescriptor\022$\n\006se" +
+      "rver\030\006 \001(\0132\024.hbase.pb.ServerName\022\023\n\013regi" +
+      "on_name\030\007 \001(\014\".\n\tEventType\022\017\n\013REGION_OPE" +
+      "N\020\000\022\020\n\014REGION_CLOSE\020\001\"\014\n\nWALTrailer*d\n\tS" +
+      "copeType\022\033\n\027REPLICATION_SCOPE_LOCAL\020\000\022\034\n" +
+      "\030REPLICATION_SCOPE_GLOBAL\020\001\022\034\n\030REPLICATI" +
+      "ON_SCOPE_SERIAL\020\002B?\n*org.apache.hadoop.h" +
+      "base.protobuf.generatedB\tWALProtosH\001\210\001\000\240" +
+      "\001\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -12040,11 +12038,11 @@ public final class WALProtos {
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_hbase_pb_WALHeader_descriptor,
               new java.lang.String[] { "HasCompression", "EncryptionKey", "HasTagCompression", "WriterClsName", "CellCodecClsName", });
-          internal_static_hbase_pb_WALKey_descriptor =
+          internal_static_hbase_pb_WALEdit_descriptor =
             getDescriptor().getMessageTypes().get(1);
-          internal_static_hbase_pb_WALKey_fieldAccessorTable = new
+          internal_static_hbase_pb_WALEdit_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
-              internal_static_hbase_pb_WALKey_descriptor,
+              internal_static_hbase_pb_WALEdit_descriptor,
               new java.lang.String[] { "EncodedRegionName", "TableName", "LogSequenceNumber", "WriteTime", "ClusterId", "Scopes", "FollowingKvCount", "ClusterIds", "NonceGroup", "Nonce", "OrigSequenceNumber", });
           internal_static_hbase_pb_FamilyScope_descriptor =
             getDescriptor().getMessageTypes().get(2);

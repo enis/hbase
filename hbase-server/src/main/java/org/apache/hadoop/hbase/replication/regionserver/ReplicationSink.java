@@ -160,7 +160,7 @@ public class ReplicationSink {
 
       for (WALEntry entry : entries) {
         TableName table =
-            TableName.valueOf(entry.getKey().getTableName().toByteArray());
+            TableName.valueOf(entry.getEdit().getTableName().toByteArray());
         Cell previousCell = null;
         Mutation m = null;
         int count = entry.getAssociatedCellCount();
@@ -185,7 +185,7 @@ public class ReplicationSink {
                       cell.getRowLength()) : new Put(cell.getRowArray(), cell.getRowOffset(),
                       cell.getRowLength());
               List<UUID> clusterIds = new ArrayList<UUID>();
-              for (HBaseProtos.UUID clusterId : entry.getKey().getClusterIdsList()) {
+              for (HBaseProtos.UUID clusterId : entry.getEdit().getClusterIdsList()) {
                 clusterIds.add(toUUID(clusterId));
               }
               m.setClusterIds(clusterIds);
@@ -222,7 +222,7 @@ public class ReplicationSink {
       }
 
       int size = entries.size();
-      this.metrics.setAgeOfLastAppliedOp(entries.get(size - 1).getKey().getWriteTime());
+      this.metrics.setAgeOfLastAppliedOp(entries.get(size - 1).getEdit().getWriteTime());
       this.metrics.applyBatch(size + hfilesReplicated, hfilesReplicated);
       this.totalReplicatedEdits.addAndGet(totalReplicated);
     } catch (IOException ex) {
